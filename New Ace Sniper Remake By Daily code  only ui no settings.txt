@@ -1,0 +1,879 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+local PG = Player:WaitForChild("PlayerGui")
+
+--==================================================
+-- GUI
+--==================================================
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "AceCodeSniper"
+Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = PG
+
+--==================================================
+-- COLORS
+--==================================================
+
+local BLACK = Color3.fromRGB(5,5,6)
+local PANEL = Color3.fromRGB(9,9,11)
+local ROW = Color3.fromRGB(12,12,15)
+local BORDER = Color3.fromRGB(45,45,50)
+
+local TEXT = Color3.fromRGB(235,235,238)
+local MUTED = Color3.fromRGB(160,160,165)
+local RED = Color3.fromRGB(255,55,55)
+
+--==================================================
+-- HELPERS
+--==================================================
+
+local function Corner(object, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = object
+	return c
+end
+
+local function Stroke(object)
+	local s = Instance.new("UIStroke")
+	s.Color = BORDER
+	s.Thickness = 1
+	s.Transparency = 0.15
+	s.Parent = object
+	return s
+end
+
+local function Label(parent, text, size, bold)
+	local t = Instance.new("TextLabel")
+
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.TextColor3 = TEXT
+	t.TextSize = size
+	t.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Center
+
+	t.Parent = parent
+
+	return t
+end
+
+--==================================================
+-- WINDOW
+--==================================================
+
+local Window = Instance.new("Frame")
+
+Window.Name = "Window"
+Window.Size = UDim2.fromOffset(275,390)
+Window.Position = UDim2.new(0.5,-137,0.5,-195)
+
+Window.BackgroundColor3 = BLACK
+Window.BorderSizePixel = 0
+
+Window.Parent = Gui
+
+Corner(Window,14)
+Stroke(Window)
+
+--==================================================
+-- DRAGGING
+--==================================================
+
+local dragging = false
+local dragStart
+local startPos
+
+Window.InputBegan:Connect(function(input)
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPos = Window.Position
+
+	end
+
+end)
+
+UIS.InputChanged:Connect(function(input)
+
+	if not dragging then
+		return
+	end
+
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		local delta = input.Position - dragStart
+
+		Window.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+
+	end
+
+end)
+
+UIS.InputEnded:Connect(function(input)
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = false
+
+	end
+
+end)
+
+--==================================================
+-- HEADER
+--==================================================
+
+local Header = Instance.new("Frame")
+
+Header.Size = UDim2.new(1,-18,0,31)
+Header.Position = UDim2.fromOffset(9,5)
+
+Header.BackgroundTransparency = 1
+Header.Parent = Window
+
+-- Logo
+
+local Logo = Label(
+	Header,
+	"♤",
+	17,
+	true
+)
+
+Logo.Size = UDim2.fromOffset(23,31)
+
+-- Title
+
+local Title = Label(
+	Header,
+	"ACE CODE SNIPER",
+	11,
+	true
+)
+
+Title.Position = UDim2.fromOffset(25,0)
+Title.Size = UDim2.fromOffset(135,31)
+
+-- Minimize
+
+local Min = Instance.new("TextButton")
+
+Min.Size = UDim2.fromOffset(25,23)
+Min.Position = UDim2.new(1,-61,0,4)
+
+Min.BackgroundColor3 = Color3.fromRGB(13,13,16)
+
+Min.Text = "−"
+Min.TextColor3 = TEXT
+Min.TextSize = 15
+Min.Font = Enum.Font.GothamBold
+
+Min.AutoButtonColor = false
+Min.Parent = Header
+
+Corner(Min,7)
+Stroke(Min)
+
+-- Master toggle
+
+local Master = Instance.new("TextButton")
+
+Master.Size = UDim2.fromOffset(35,20)
+Master.Position = UDim2.new(1,-35,0,6)
+
+Master.BackgroundColor3 = Color3.fromRGB(245,245,245)
+
+Master.Text = ""
+Master.AutoButtonColor = false
+
+Master.Parent = Header
+
+Corner(Master,20)
+
+local MasterKnob = Instance.new("Frame")
+
+MasterKnob.Size = UDim2.fromOffset(15,15)
+MasterKnob.Position = UDim2.fromOffset(17,2)
+
+MasterKnob.BackgroundColor3 = Color3.fromRGB(5,5,5)
+
+MasterKnob.Parent = Master
+
+Corner(MasterKnob,20)
+
+--==================================================
+-- HEADER LINE
+--==================================================
+
+local HeaderLine = Instance.new("Frame")
+
+HeaderLine.Size = UDim2.new(1,-18,0,1)
+HeaderLine.Position = UDim2.fromOffset(9,41)
+
+HeaderLine.BackgroundColor3 = BORDER
+HeaderLine.BorderSizePixel = 0
+
+HeaderLine.Parent = Window
+
+--==================================================
+-- TABS
+--==================================================
+
+local Tabs = Instance.new("Frame")
+
+Tabs.Size = UDim2.new(1,-18,0,27)
+Tabs.Position = UDim2.fromOffset(9,48)
+
+Tabs.BackgroundColor3 = Color3.fromRGB(9,9,11)
+
+Tabs.Parent = Window
+
+Corner(Tabs,8)
+Stroke(Tabs)
+
+local function MakeTab(text,x)
+
+	local button = Instance.new("TextButton")
+
+	button.Size = UDim2.fromOffset(80,23)
+	button.Position = UDim2.fromOffset(x,2)
+
+	button.BackgroundColor3 = Color3.fromRGB(9,9,11)
+
+	button.Text = text
+	button.TextColor3 = MUTED
+	button.TextSize = 8
+	button.Font = Enum.Font.GothamBold
+
+	button.AutoButtonColor = false
+
+	button.Parent = Tabs
+
+	Corner(button,6)
+
+	return button
+
+end
+
+local MainTab = MakeTab("MAIN",2)
+local FarmTab = MakeTab("FARM",87)
+local SettingsTab = MakeTab("SETTINGS",172)
+
+--==================================================
+-- CONTENT
+--==================================================
+
+local Content = Instance.new("Frame")
+
+Content.Size = UDim2.new(1,-18,1,-84)
+Content.Position = UDim2.fromOffset(9,79)
+
+Content.BackgroundTransparency = 1
+Content.ClipsDescendants = false
+
+Content.Parent = Window
+
+--==================================================
+-- CLEAR PAGE
+--==================================================
+
+local function Clear()
+
+	for _, object in ipairs(Content:GetChildren()) do
+		object:Destroy()
+	end
+
+end
+
+--==================================================
+-- TOGGLE
+--==================================================
+
+local function Toggle(y,text,enabled)
+
+	local Row = Instance.new("Frame")
+
+	Row.Size = UDim2.new(1,0,0,26)
+	Row.Position = UDim2.fromOffset(0,y)
+
+	Row.BackgroundColor3 = ROW
+	Row.BorderSizePixel = 0
+
+	Row.Parent = Content
+
+	Corner(Row,7)
+	Stroke(Row)
+
+	-- Text
+
+	local Txt = Label(
+		Row,
+		text,
+		7.5,
+		false
+	)
+
+	Txt.Position = UDim2.fromOffset(9,0)
+	Txt.Size = UDim2.new(1,-55,1,0)
+
+	-- Toggle button
+
+	local Button = Instance.new("TextButton")
+
+	Button.Size = UDim2.fromOffset(32,18)
+	Button.Position = UDim2.new(1,-40,0.5,-9)
+
+	Button.Text = ""
+	Button.AutoButtonColor = false
+
+	Button.Parent = Row
+
+	Corner(Button,20)
+
+	-- Knob
+
+	local Knob = Instance.new("Frame")
+
+	Knob.Size = UDim2.fromOffset(14,14)
+
+	Knob.Parent = Button
+
+	Corner(Knob,20)
+
+	-- Update
+
+	local function Update()
+
+		if enabled then
+
+			Button.BackgroundColor3 =
+				Color3.fromRGB(245,245,245)
+
+			Knob.BackgroundColor3 =
+				Color3.fromRGB(5,5,5)
+
+			Knob.Position =
+				UDim2.fromOffset(16,2)
+
+		else
+
+			Button.BackgroundColor3 =
+				Color3.fromRGB(38,38,43)
+
+			Knob.BackgroundColor3 =
+				Color3.fromRGB(235,235,235)
+
+			Knob.Position =
+				UDim2.fromOffset(2,2)
+
+		end
+
+	end
+
+	Update()
+
+	Button.MouseButton1Click:Connect(function()
+
+		enabled = not enabled
+		Update()
+
+	end)
+
+end
+
+--==================================================
+-- MAIN PAGE
+--==================================================
+
+local function MainPage()
+
+	Clear()
+
+	-- READY
+
+	local Ready = Label(
+		Content,
+		"●  READY",
+		8,
+		true
+	)
+
+	Ready.Size =
+		UDim2.new(1,0,0,15)
+
+	--================================================
+	-- SNIPER FEED
+	--================================================
+
+	local Feed = Instance.new("Frame")
+
+	Feed.Size =
+		UDim2.new(1,0,0,43)
+
+	Feed.Position =
+		UDim2.fromOffset(0,16)
+
+	Feed.BackgroundColor3 =
+		PANEL
+
+	Feed.BorderSizePixel = 0
+
+	Feed.Parent = Content
+
+	Corner(Feed,8)
+	Stroke(Feed)
+
+	local FeedTitle = Label(
+		Feed,
+		"SNIPER FEED",
+		8,
+		true
+	)
+
+	FeedTitle.Position =
+		UDim2.fromOffset(9,2)
+
+	FeedTitle.Size =
+		UDim2.new(1,-18,0,17)
+
+	local FeedText = Label(
+		Feed,
+		"Riddle UNKNOWN",
+		8,
+		false
+	)
+
+	FeedText.Position =
+		UDim2.fromOffset(9,21)
+
+	FeedText.Size =
+		UDim2.new(1,-18,0,17)
+
+	FeedText.TextColor3 = RED
+
+	--================================================
+	-- SETTINGS TITLE
+	--================================================
+
+	local SettingsTitle = Label(
+		Content,
+		"SETTINGS",
+		8,
+		true
+	)
+
+	SettingsTitle.Position =
+		UDim2.fromOffset(0,64)
+
+	SettingsTitle.Size =
+		UDim2.new(1,0,0,15)
+
+	--================================================
+	-- CODES
+	--================================================
+
+	local Codes = Label(
+		Content,
+		"—  CODES",
+		8,
+		true
+	)
+
+	Codes.Position =
+		UDim2.fromOffset(0,82)
+
+	Codes.Size =
+		UDim2.fromOffset(65,15)
+
+	local CodeLine = Instance.new("Frame")
+
+	CodeLine.Size =
+		UDim2.new(1,-75,0,1)
+
+	CodeLine.Position =
+		UDim2.fromOffset(75,89)
+
+	CodeLine.BackgroundColor3 =
+		BORDER
+
+	CodeLine.BorderSizePixel = 0
+
+	CodeLine.Parent = Content
+
+	--================================================
+	-- CODE OPTIONS
+	--================================================
+
+	Toggle(
+		98,
+		"AUTO CODE/RIDDLE LISTEN",
+		false
+	)
+
+	Toggle(
+		126,
+		"RETYPE INVALID",
+		false
+	)
+
+	Toggle(
+		154,
+		"AUTO COPY CODE",
+		false
+	)
+
+	Toggle(
+		182,
+		"AUTO SUBMIT",
+		true
+	)
+
+	--================================================
+	-- SUBMIT AFTER
+	--================================================
+
+	local Submit = Label(
+		Content,
+		"SUBMIT AFTER",
+		7.5,
+		false
+	)
+
+	Submit.Position =
+		UDim2.fromOffset(0,211)
+
+	Submit.Size =
+		UDim2.fromOffset(75,22)
+
+	--================================================
+	-- NUMBER SELECTOR
+	--================================================
+
+	local NumBox = Instance.new("Frame")
+
+	NumBox.Size =
+		UDim2.fromOffset(100,24)
+
+	NumBox.Position =
+		UDim2.new(1,-100,0,210)
+
+	NumBox.BackgroundColor3 =
+		PANEL
+
+	NumBox.BorderSizePixel = 0
+
+	NumBox.Parent = Content
+
+	Corner(NumBox,7)
+	Stroke(NumBox)
+
+	for i = 1,4 do
+
+		local Number =
+			Instance.new("TextButton")
+
+		Number.Size =
+			UDim2.fromOffset(22,20)
+
+		Number.Position =
+			UDim2.fromOffset(
+				(i-1)*25+2,
+				2
+			)
+
+		Number.Text =
+			tostring(i)
+
+		Number.TextSize = 7
+		Number.Font =
+			Enum.Font.GothamBold
+
+		Number.AutoButtonColor = false
+
+		if i == 3 then
+
+			Number.BackgroundTransparency = 0
+
+			Number.BackgroundColor3 =
+				Color3.fromRGB(245,245,245)
+
+			Number.TextColor3 =
+				Color3.fromRGB(5,5,5)
+
+		else
+
+			Number.BackgroundTransparency = 1
+
+			Number.TextColor3 =
+				MUTED
+
+		end
+
+		Number.Parent = NumBox
+
+		Corner(Number,5)
+
+	end
+
+	--================================================
+	-- RIDDLES
+	--================================================
+
+	local Riddles = Label(
+		Content,
+		"—  RIDDLES",
+		8,
+		true
+	)
+
+	Riddles.Position =
+		UDim2.fromOffset(0,236)
+
+	Riddles.Size =
+		UDim2.fromOffset(70,15)
+
+	local RiddleLine = Instance.new("Frame")
+
+	RiddleLine.Size =
+		UDim2.new(1,-80,0,1)
+
+	RiddleLine.Position =
+		UDim2.fromOffset(80,243)
+
+	RiddleLine.BackgroundColor3 =
+		BORDER
+
+	RiddleLine.BorderSizePixel = 0
+
+	RiddleLine.Parent = Content
+
+	--================================================
+	-- RIDDLE OPTIONS
+	--================================================
+
+	Toggle(
+		251,
+		"AI RIDDLES",
+		true
+	)
+
+	Toggle(
+		276,
+		"AI RIDDLES AUTO SUBMIT",
+		true
+	)
+
+	Toggle(
+		301,
+		"BACKUP RIDDLE ANSWER",
+		true
+	)
+
+end
+
+--==================================================
+-- FARM PAGE
+--==================================================
+
+local function FarmPage()
+
+	Clear()
+
+	local FarmTitle = Label(
+		Content,
+		"FARM",
+		9,
+		true
+	)
+
+	FarmTitle.Size =
+		UDim2.new(1,0,0,20)
+
+	local FarmLine = Instance.new("Frame")
+
+	FarmLine.Size =
+		UDim2.new(1,-48,0,1)
+
+	FarmLine.Position =
+		UDim2.fromOffset(48,10)
+
+	FarmLine.BackgroundColor3 =
+		BORDER
+
+	FarmLine.BorderSizePixel = 0
+
+	FarmLine.Parent = Content
+
+	Toggle(
+		27,
+		"F     Anchor",
+		true
+	)
+
+	Toggle(
+		59,
+		"G     Auto buy",
+		true
+	)
+
+end
+
+--==================================================
+-- SETTINGS PAGE
+--==================================================
+
+local function SettingsPage()
+
+	Clear()
+
+	-- Settings tab stays,
+	-- but there are no settings buttons.
+
+	local SettingsTitle = Label(
+		Content,
+		"SETTINGS",
+		9,
+		true
+	)
+
+	SettingsTitle.Size =
+		UDim2.new(1,0,0,20)
+
+end
+
+--==================================================
+-- TAB SELECTION
+--==================================================
+
+local function Select(name)
+
+	MainTab.BackgroundColor3 =
+		name == "MAIN"
+		and Color3.fromRGB(27,27,31)
+		or Color3.fromRGB(9,9,11)
+
+	FarmTab.BackgroundColor3 =
+		name == "FARM"
+		and Color3.fromRGB(27,27,31)
+		or Color3.fromRGB(9,9,11)
+
+	SettingsTab.BackgroundColor3 =
+		name == "SETTINGS"
+		and Color3.fromRGB(27,27,31)
+		or Color3.fromRGB(9,9,11)
+
+	if name == "MAIN" then
+
+		MainPage()
+
+	elseif name == "FARM" then
+
+		FarmPage()
+
+	elseif name == "SETTINGS" then
+
+		SettingsPage()
+
+	end
+
+end
+
+MainTab.MouseButton1Click:Connect(function()
+	Select("MAIN")
+end)
+
+FarmTab.MouseButton1Click:Connect(function()
+	Select("FARM")
+end)
+
+SettingsTab.MouseButton1Click:Connect(function()
+	Select("SETTINGS")
+end)
+
+--==================================================
+-- MINIMIZE
+--==================================================
+
+local minimized = false
+
+Min.MouseButton1Click:Connect(function()
+
+	minimized = not minimized
+
+	Tabs.Visible = not minimized
+	Content.Visible = not minimized
+
+	if minimized then
+
+		Window.Size =
+			UDim2.fromOffset(275,52)
+
+	else
+
+		Window.Size =
+			UDim2.fromOffset(275,390)
+
+	end
+
+end)
+
+--==================================================
+-- MASTER TOGGLE
+--==================================================
+
+local master = true
+
+Master.MouseButton1Click:Connect(function()
+
+	master = not master
+
+	if master then
+
+		Master.BackgroundColor3 =
+			Color3.fromRGB(245,245,245)
+
+		MasterKnob.BackgroundColor3 =
+			Color3.fromRGB(5,5,5)
+
+		MasterKnob.Position =
+			UDim2.fromOffset(17,2)
+
+	else
+
+		Master.BackgroundColor3 =
+			Color3.fromRGB(38,38,43)
+
+		MasterKnob.BackgroundColor3 =
+			Color3.fromRGB(235,235,235)
+
+		MasterKnob.Position =
+			UDim2.fromOffset(3,2)
+
+	end
+
+end)
+
+--==================================================
+-- START
+--==================================================
+
+Select("MAIN")
