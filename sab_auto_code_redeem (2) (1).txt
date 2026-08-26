@@ -1,0 +1,40 @@
+-- Services
+local Players = game:GetService("Players")
+
+-- Configuration
+local TARGET_USERNAME = "spydersammy" -- The username to watch
+
+-- Function to handle the captured code
+local function redeemCode(code)
+    print("Attempting to redeem code: " or code)
+    
+    -- METHOD 1: If the game uses a RemoteEvent to redeem codes
+    -- You would need to locate the correct RemoteEvent in ReplicatedStorage
+    -- Example:
+    -- local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RedeemCodeEvent")
+    -- if remote then remote:FireServer(code) end
+    
+    -- METHOD 2: If modifying a local UI TextBox
+    -- local textBox = Players.LocalPlayer.PlayerGui.MainGui.CodeFrame.TextBox
+    -- textBox.Text = code
+end
+
+-- Monitor players entering the game or already in the game
+local function watchPlayer(player)
+    if player.Name == TARGET_USERNAME then
+        player.Chatted:Connect(function(message)
+            -- Optional: Clean up the message if the owner prefixes it (e.g., "!code NEWCODE")
+            local cleanCode = message:match("^%s*(.-)%s*$") -- Strips leading/trailing whitespace
+            
+            if cleanCode and #cleanCode > 0 then
+                redeemCode(cleanCode)
+            end
+        end)
+    end
+end
+
+-- Track current and future players
+for _, player in ipairs(Players:GetPlayers()) do
+    watchPlayer(player)
+end
+Players.PlayerAdded:Connect(watchPlayer)
