@@ -1,0 +1,443 @@
+-- fix by prince https://discord.gg/TBBAUZu8cW
+local cloneref = cloneref or function(object) return object end
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+if getgenv and getgenv().StopAura then pcall(getgenv().StopAura) end
+
+local CONFIG_FILE = "zynox_redeemer_config.json"
+local savedConfig = {
+    codeSniper = true,
+    autoSubmit = true,
+    submitAfter = 1,
+    riddleSolver = false,
+    caseMode = "EXACT",
+    speedMode = "MAX",
+}
+
+pcall(function()
+    if type(isfile) == "function" and type(readfile) == "function" and isfile(CONFIG_FILE) then
+        local decoded = HttpService:JSONDecode(readfile(CONFIG_FILE))
+        if type(decoded) == "table" then
+            if type(decoded.codeSniper) == "boolean" then savedConfig.codeSniper = decoded.codeSniper end
+            if type(decoded.autoSubmit) == "boolean" then savedConfig.autoSubmit = decoded.autoSubmit end
+            if type(decoded.submitAfter) == "number" then savedConfig.submitAfter = math.max(1, math.floor(decoded.submitAfter)) end
+            if type(decoded.riddleSolver) == "boolean" then savedConfig.riddleSolver = decoded.riddleSolver end
+            if type(decoded.caseMode) == "string" then savedConfig.caseMode = decoded.caseMode end
+            if type(decoded.speedMode) == "string" then savedConfig.speedMode = decoded.speedMode end
+        end
+    end
+end)
+
+local function saveConfig()
+    if type(writefile) ~= "function" then return end
+    pcall(function()
+        writefile(CONFIG_FILE, HttpService:JSONEncode(savedConfig))
+    end)
+end
+
+local isEnabled = savedConfig.codeSniper
+local seenCodes = {}
+local focusedBox = nil
+local lastBox = nil
+local isAutoAccept = savedConfig.autoSubmit
+local submitThreshold = savedConfig.submitAfter
+local capturedParts = {}
+local lastWatchedBox = nil
+local boxTextConn = nil
+local boxAncestryConn = nil
+local boxVisibilityConns = {}
+local isRiddleSolverEnabled = savedConfig.riddleSolver
+local caseMode = savedConfig.caseMode
+local speedMode = savedConfig.speedMode
+local wordCountSetting = savedConfig.submitAfter
+
+local getupvalues = (debug and debug.getupvalues) or getupvalues
+local getconns = getconnections or (debug and debug.getconnections)
+local setupv = (debug and debug.setupvalue) or setupvalue
+
+local setStatus, flashCode, appendToBox, clearZynoxCapture
+local lastStatusMsg = nil
+
+local function isOurGui(instance)
+    local p = instance
+    for _ = 1, 10 do
+        if not p then break end
+        if p.Name == "ZynoxRedeemerUI" or p.Name == "ACECodeSniperUI" or p.Name == "SourcesHubRedeemerGui" then return true end
+        p = p.Parent
+    end
+    return false
+end
+
+local function isVisibleChain(inst)
+    local current = inst
+    while current do
+        if current:IsA("GuiObject") and not current.Visible then return false end
+        if current:IsA("ScreenGui") then return current.Enabled end
+        current = current.Parent
+    end
+    return true
+end
+
+local function findAllTextBoxes(pg)
+    local boxes = {}
+    for _, gui in ipairs(pg:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
+            for _, d in ipairs(gui:GetDescendants()) do
+                if d:IsA("TextBox") and not isOurGui(d) then
+                    boxes[#boxes+1] = d
+                end
+            end
+        end
+    end
+    return boxes
+end
+
+local function findCodeButtons(pg)
+    local btns = {}
+    for _, gui in ipairs(pg:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Enabled and not isOurGui(gui) then
+            for _, d in ipairs(gui:GetDescendants()) do
+                if (d:IsA("TextButton") or d:IsA("ImageButton")) and not isOurGui(d) then
+                    local n = d.Name:lower()
+                    local pn = (d.Parent and d.Parent.Name or ""):lower()
+                    if (n:find("code") or n:find("redeem") or pn:find("code") or pn:find("redeem")) and isVisibleChain(d) then
+                        btns[#btns+1] = d
+                    end
+                end
+            end
+        end
+    end
+    return btns
+end
+
+local function clickButton(btn)
+    if not btn then return false end
+    local methods = {
+        function() btn.MouseButton1Click:Fire() end,
+        function() btn.Activated:Fire() end
+    }
+    if typeof(firesignal) == "function" then
+        table.insert(methods, function() firesignal(btn.MouseButton1Click) end)
+        table.insert(methods, function() firesignal(btn.Activated) end)
+    end
+    if typeof(getconns) == "function" then
+        table.insert(methods, function()
+            local ok, cs = pcall(getconns, btn.MouseButton1Click)
+            if ok and type(cs) == "table" then for _, c in ipairs(cs) do pcall(function() c:Fire() end) end end
+            local ok2, cs2 = pcall(getconns, btn.Activated)
+            if ok2 and type(cs2) == "table" then for _, c in ipairs(cs2) do pcall(function() c:Fire() end) end end
+        end)
+    end
+    if typeof(fireclick) == "function" then table.insert(methods, function() fireclick(btn) end) end
+    local anyOk = false
+    for _, fn in ipairs(methods) do
+        local ok = pcall(fn)
+        anyOk = anyOk or ok
+    end
+    return anyOk
+end
+
+local function fireBoxFocusLost(box)
+    if not box then return false end
+    local anyFired = false
+    if typeof(firesignal) == "function" then
+        anyFired = pcall(firesignal, box.FocusLost, true) or anyFired
+    end
+    if typeof(getconns) == "function" then
+        local ok, cs = pcall(getconns, box.FocusLost)
+        if ok and type(cs) == "table" then
+            for _, c in ipairs(cs) do
+                local fn
+                pcall(function() fn = c.Function end)
+                if fn and typeof(getupvalues) == "function" and typeof(setupv) == "function" then
+                    local uOk, ups = pcall(getupvalues, fn)
+                    if uOk and type(ups) == "table" then
+                        for i, v in pairs(ups) do
+                            if type(v) == "boolean" and v == true then pcall(setupv, fn, i, false) end
+                        end
+                    end
+                end
+                anyFired = pcall(function() if c.Enabled ~= false then c:Fire(true) end end) or anyFired
+            end
+        end
+    end
+    return anyFired
+end
+
+local function typeAndSubmitCode(code)
+    local pg = PlayerGui
+    if not pg then return false, "no PlayerGui" end
+    local codesGui = pg:FindFirstChild("Codes")
+    if codesGui then
+        if codesGui:IsA("ScreenGui") then codesGui.Enabled = true end
+        local codesFrame = codesGui:FindFirstChild("Codes") or codesGui
+        if codesFrame then
+            if codesFrame:IsA("GuiObject") then codesFrame.Visible = true end
+            local box = nil
+            for _, d in ipairs(codesFrame:GetDescendants()) do
+                if d:IsA("TextBox") and not isOurGui(d) then box = d; break end
+            end
+            local submitBtn = nil
+            for _, d in ipairs(codesFrame:GetDescendants()) do
+                if (d:IsA("TextButton") or d:IsA("ImageButton")) and not isOurGui(d) then
+                    local n = d.Name:lower()
+                    local txt = ""
+                    pcall(function() txt = d.Text:lower() end)
+                    if n:find("submit") or txt:find("submit") or n:find("redeem") or txt:find("redeem") or n:find("claim") or txt:find("confirm") or n:find("enter") then
+                        submitBtn = d; break
+                    end
+                end
+            end
+            if box then
+                pcall(function() box.Text = code end)
+                task.wait(0.05)
+                if submitBtn then clickButton(submitBtn) end
+                fireBoxFocusLost(box)
+                return true, "submitted"
+            end
+        end
+    end
+    local btns = findCodeButtons(pg)
+    for _, btn in ipairs(btns) do clickButton(btn); task.wait(0.05) end
+    task.wait(0.2)
+    local box = nil
+    local deadline = tick() + 2
+    while tick() < deadline do
+        local allBoxes = findAllTextBoxes(pg)
+        for _, d in ipairs(allBoxes) do
+            if isVisibleChain(d) then
+                local n = d.Name:lower()
+                if n:find("code") or n:find("redeem") or n:find("input") or n:find("enter") then box = d; break end
+            end
+        end
+        if box then break end
+        task.wait(0.1)
+    end
+    if not box then return false, "no box" end
+    pcall(function() box.Text = code end)
+    fireBoxFocusLost(box)
+    return true, "dynamic submitted"
+end
+
+local function zynoxCodeBox()
+    for _, box in ipairs(findAllTextBoxes(PlayerGui)) do
+        if isVisibleChain(box) then return box end
+    end
+    return nil
+end
+
+local COLORS = {
+    Window = Color3.fromRGB(11, 16, 30),
+    CardBg = Color3.fromRGB(17, 24, 44),
+    Control = Color3.fromRGB(24, 34, 61),
+    Border = Color3.fromRGB(36, 52, 92),
+    White = Color3.fromRGB(255, 255, 255),
+    Text = Color3.fromRGB(200, 215, 255),
+    Dim = Color3.fromRGB(130, 145, 180),
+    Accent = Color3.fromRGB(77, 158, 255),
+    Green = Color3.fromRGB(80, 230, 140),
+    Red = Color3.fromRGB(255, 90, 90),
+}
+
+local function addCorner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = parent
+end
+
+local function addStroke(parent, color, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0
+    s.Parent = parent
+end
+
+local function makeLabel(parent, name, text, size, position, textSize, color, font)
+    local label = Instance.new("TextLabel")
+    label.Name = name
+    label.Size = size
+    label.Position = position
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextSize = textSize
+    label.TextColor3 = color
+    label.Font = font or Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    return label
+end
+
+local GUI = Instance.new("ScreenGui")
+GUI.Name = "ZynoxRedeemerUI"
+GUI.ResetOnSpawn = false
+GUI.IgnoreGuiInset = true
+GUI.DisplayOrder = 999
+GUI.Parent = game:GetService("CoreGui") or PlayerGui
+
+local Window = Instance.new("Frame")
+Window.Name = "Window"
+Window.Size = UDim2.fromOffset(400, 390)
+Window.Position = UDim2.new(1, -12, 0, 12)
+Window.BackgroundColor3 = COLORS.Window
+Window.ClipsDescendants = true
+Window.Parent = GUI
+addCorner(Window, 12)
+addStroke(Window, COLORS.Border, 1.5, 0.2)
+
+local InterfaceScale = Instance.new("UIScale", Window)
+local function updateInterfaceScale()
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    local viewport = camera.ViewportSize
+    local fitScale = math.min((viewport.X - 20) / 400, (viewport.Y - 20) / 390)
+    InterfaceScale.Scale = UserInputService.TouchEnabled and math.max(0.5, math.min(0.85, fitScale)) or 1.0
+end
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(updateInterfaceScale)
+updateInterfaceScale()
+
+local Header = Instance.new("Frame", Window)
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundTransparency = 1
+Header.Active = true
+
+local MinimizeButton = Instance.new("TextButton", Header)
+MinimizeButton.Size = UDim2.fromOffset(28, 28)
+MinimizeButton.Position = UDim2.new(1, -38, 0, 10)
+MinimizeButton.BackgroundColor3 = COLORS.Control
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = COLORS.Text
+addCorner(MinimizeButton, 14)
+addStroke(MinimizeButton, COLORS.Border, 1, 0.4)
+
+local windowVisible = true
+MinimizeButton.MouseButton1Click:Connect(function()
+    windowVisible = not windowVisible
+    for _, child in ipairs(Window:GetChildren()) do
+        if child ~= Header and child ~= InterfaceScale then child.Visible = windowVisible end
+    end
+    Window.Size = windowVisible and UDim2.fromOffset(400, 390) or UDim2.fromOffset(400, 48)
+end)
+
+local LeftContainer = Instance.new("ScrollingFrame", Window)
+LeftContainer.Size = UDim2.new(0, 178, 1, -85)
+LeftContainer.Position = UDim2.fromOffset(12, 52)
+LeftContainer.BackgroundTransparency = 1
+LeftContainer.ScrollBarThickness = 3
+
+local RightContainer = Instance.new("Frame", Window)
+RightContainer.Size = UDim2.new(1, -200, 1, -85)
+RightContainer.Position = UDim2.new(0, 196, 0, 52)
+RightContainer.BackgroundColor3 = COLORS.CardBg
+RightContainer.BackgroundTransparency = 0.3
+addCorner(RightContainer, 8)
+addStroke(RightContainer, COLORS.Border, 1, 0.5)
+
+local currentY = 0
+local function createToggleRow(labelText, defaultState, callback)
+    local row = Instance.new("Frame", LeftContainer)
+    row.Size = UDim2.new(1, 0, 0, 36)
+    row.Position = UDim2.fromOffset(0, currentY)
+    row.BackgroundColor3 = COLORS.CardBg
+    addCorner(row, 6)
+    makeLabel(row, "Label", labelText, UDim2.new(1, -45, 1, 0), UDim2.fromOffset(10, 0), 11, COLORS.White)
+    local btn = Instance.new("TextButton", row)
+    btn.Size = UDim2.fromOffset(36, 20)
+    btn.Position = UDim2.new(1, -42, 0.5, -10)
+    btn.BackgroundColor3 = defaultState and COLORS.Accent or COLORS.Control
+    addCorner(btn, 10)
+    local state = defaultState
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.BackgroundColor3 = state and COLORS.Accent or COLORS.Control
+        callback(state)
+    end)
+    currentY = currentY + 44
+end
+
+createToggleRow("Auto submit", isAutoAccept, function(s) isAutoAccept = s; savedConfig.autoSubmit = s; saveConfig() end)
+createToggleRow("Riddle solver", isRiddleSolverEnabled, function(s) isRiddleSolverEnabled = s; savedConfig.riddleSolver = s; saveConfig() end)
+
+local Console = Instance.new("ScrollingFrame", RightContainer)
+Console.Size = UDim2.new(1, -16, 1, -16)
+Console.Position = UDim2.fromOffset(8, 8)
+Console.BackgroundTransparency = 1
+local ConsoleOutput = Instance.new("TextLabel", Console)
+ConsoleOutput.AutomaticSize = Enum.AutomaticSize.Y
+ConsoleOutput.Size = UDim2.new(1, 0, 0, 0)
+ConsoleOutput.RichText = true
+ConsoleOutput.Text = "Ready"
+
+function setStatus(msg, col)
+    if not isEnabled then return end
+    lastStatusMsg = msg
+    local hex = col and string.format("rgb(%d,%d,%d)", col.R*255, col.G*255, col.B*255) or "white"
+    ConsoleOutput.Text = ConsoleOutput.Text .. "\n" .. string.format('<font color="%s">%s</font>', hex, msg)
+end
+
+function flashCode(code, col)
+    setStatus("[Code] -> " .. code, col)
+end
+
+clearZynoxCapture = function() capturedParts = {} end
+
+local function watchBoxForBlankReset(box)
+    if not box or lastWatchedBox == box then return end
+    if boxTextConn then boxTextConn:Disconnect() end
+    lastWatchedBox = box
+    boxTextConn = box:GetPropertyChangedSignal("Text"):Connect(function() if box.Text == "" then capturedParts = {} end end)
+end
+
+UserInputService.TextBoxFocused:Connect(function(box)
+    if box:IsDescendantOf(GUI) then return end
+    focusedBox = box
+    lastBox = box
+    watchBoxForBlankReset(box)
+end)
+
+function appendToBox(text)
+    if caseMode == "LOWER" then text = text:lower() end
+    table.insert(capturedParts, text)
+    local combined = table.concat(capturedParts)
+    local box = zynoxCodeBox()
+    if box then box.Text = combined end
+    setStatus("Pasted " .. #capturedParts .. "/" .. wordCountSetting, COLORS.Green)
+    flashCode(combined, COLORS.Green)
+    if #capturedParts >= wordCountSetting then
+        if isAutoAccept then typeAndSubmitCode(combined) end
+        capturedParts = {}
+    end
+end
+
+local function onZynoxAnnouncement(...)
+    local text = tostring((...) or ""):gsub("<[^>]->", "")
+    for word in text:gmatch("[%w_]+") do
+        table.insert(capturedParts, word)
+        if #capturedParts >= wordCountSetting then appendToBox(table.concat(capturedParts)); capturedParts = {} end
+    end
+end
+
+local zynoxNotifyRemote = nil
+for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+    if d:IsA("RemoteEvent") then
+        local cs = getconnections(d.OnClientEvent)
+        for _, c in ipairs(cs) do
+            local info = debug.getinfo(c.Function)
+            if (info.source or ""):find("NotificationController") then zynoxNotifyRemote = d; break end
+        end
+    end
+end
+
+if zynoxNotifyRemote then
+    zynoxNotifyRemote.OnClientEvent:Connect(function(...) if isEnabled then pcall(onZynoxAnnouncement, ...) end end)
+end
+
+setStatus("ZYNOX REDEEMER Loaded", COLORS.Green)
