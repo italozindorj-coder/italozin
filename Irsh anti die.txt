@@ -1,0 +1,724 @@
+-- [[ RECONSTRUCTED SOURCE: VERSION 10.0 ]] --
+-- [[ ACCURACY: 100% LITERAL LOG TRACE    ]] --
+-- [[ Script: Irish Anti Die / Anti Fling ]] --
+Leaked by xxx sueyhsueydsh nugget 
+-- ============================================================
+-- // [1] SERVICES //
+-- ============================================================
+
+local Players          = game:GetService("Players")
+local CoreGui          = game:GetService("CoreGui")
+local RunService       = game:GetService("RunService")
+local TweenService     = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService       = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ============================================================
+-- // [2] CONFIGURATION //
+-- ============================================================
+
+local CONFIG = {
+    -- GUI identity
+    Names = {
+        ScreenGui     = "IrishAntiDieUI",
+        Main          = "Main",
+        DiscordTag    = "DiscordTag",
+        HighlightTag  = "IrishAntiDieEffect",
+        Dejavu        = "dejavu",
+    },
+
+    -- Sizes
+    Size = {
+        Main          = UDim2.new(0, 330, 0, 250),
+        MainCollapsed = UDim2.new(0, 330, 0, 0),
+        Header        = UDim2.new(1, 0, 0, 56),
+        Content       = UDim2.new(1, 0, 1, -56),
+        AntiDieRow    = UDim2.new(1, -36, 0, 64),
+        AntiFlingRow  = UDim2.new(1, -36, 0, 64),
+        ToggleBG      = UDim2.new(0, 58, 0, 30),
+        ToggleKnob    = UDim2.new(0, 24, 0, 24),
+        MinimizeBtn   = UDim2.new(0, 30, 0, 30),
+        DiscordLabel  = UDim2.new(1, -36, 0, 28),
+    },
+
+    -- Positions
+    Position = {
+        Main          = UDim2.new(0.5, -165, 0.5, -125),
+        RedDot        = UDim2.new(0, 18, 0, 23),
+        TitleLabel    = UDim2.new(0, 46, 0, 10),
+        SubtitleLabel = UDim2.new(0, 46, 0, 32),
+        MinimizeBtn   = UDim2.new(1, -44, 0, 13),
+        AntiDieRow    = UDim2.new(0, 18, 0, 13),
+        AntiFlingRow  = UDim2.new(0, 18, 0, 90),
+        ToggleBG      = UDim2.new(1, -78, 0.5, -15),
+        ToggleKnob    = UDim2.new(0, 3, 0.5, -12),
+        LabelInRow    = UDim2.new(0, 20, 0, 0),
+        DiscordLabel  = UDim2.new(0, 18, 0, 167),
+        WatermarkTag  = UDim2.new(1, -12, 1, -10),
+    },
+
+    -- Colors
+    Colors = {
+        MainBG          = Color3.fromRGB(9, 10, 14),
+        HeaderBG        = Color3.fromRGB(0, 0, 0),           -- transparent (BackgroundTransparency=1)
+        ContentBG       = Color3.fromRGB(0, 0, 0),           -- transparent (BackgroundTransparency=1)
+        RowBG           = Color3.fromRGB(15, 17, 23),
+        RowStroke       = Color3.fromRGB(48, 55, 68),
+        RedDot          = Color3.fromRGB(255, 80, 95),
+        TitleText       = Color3.fromRGB(245, 247, 255),
+        SubtitleText    = Color3.fromRGB(145, 152, 166),
+        MinimizeBG      = Color3.fromRGB(21, 24, 32),
+        MinimizeText    = Color3.fromRGB(245, 247, 255),
+        MinimizeStroke  = Color3.fromRGB(48, 55, 68),
+        MainStroke      = Color3.fromRGB(48, 55, 68),
+        ToggleOffBG     = Color3.fromRGB(35, 39, 50),
+        ToggleOnBG      = Color3.fromRGB(24, 105, 52),
+        ToggleOffKnob   = Color3.fromRGB(255, 255, 255),
+        ToggleOnKnob    = Color3.fromRGB(85, 255, 145),
+        HighlightFill   = Color3.fromRGB(85, 255, 145),
+        HighlightOutline= Color3.fromRGB(85, 255, 145),
+        WatermarkBG     = Color3.fromRGB(0, 0, 0),
+        WatermarkText   = Color3.fromRGB(255, 255, 255),
+        WatermarkStroke = Color3.fromRGB(25, 25, 25),
+        DiscordLabelBG  = Color3.fromRGB(15, 17, 23),
+    },
+
+    -- Numeric constants
+    UIScaleValue        = 0.78,
+    MinimizeTweenTime   = 0.3,
+
+    -- Toggle default states (false = OFF, true = ON)
+    ToggleStates = {
+        AntiDie   = false,
+        AntiFling = false,
+    },
+}
+
+-- ============================================================
+-- // [3] OBJECT REFERENCES //
+-- ============================================================
+
+local GUI               -- ScreenGui
+local Main              -- Main draggable frame
+local HeaderFrame       -- Top bar (transparent)
+local RedDot            -- Colored circle in header
+local TitleLabel        -- "IRISH HUB"
+local SubtitleLabel     -- "ANTI DIE / ANTI FLING"
+local MinimizeBtn       -- '−' / '+' button
+local ContentFrame      -- Body below header
+local AntiDieRow        -- Anti Die toggle row frame
+local AntiDieLabel      -- "Anti Die" TextLabel
+local AntiDieToggleBG   -- Toggle pill background
+local AntiDieKnob       -- Sliding knob inside toggle
+local AntiDieToggleBtn  -- Invisible click surface
+local AntiFlingRow      -- Anti Fling toggle row frame
+local AntiFlingLabel    -- "Anti Fling" TextLabel
+local AntiFlingToggleBG
+local AntiFlingKnob
+local AntiFlingToggleBtn
+local DiscordLinkLabel  -- "discord.gg/irsh" label at bottom
+local DiscordTag        -- Bottom-right watermark
+
+-- Runtime connection stores
+local AntiDieConnections   = {}
+local AntiFlingConnections = {}
+
+local isMinimized = false
+
+-- ============================================================
+-- // [4] UTILITY FUNCTIONS //
+-- ============================================================
+
+local function addCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function addStroke(parent, color, transparency, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color         = color or Color3.fromRGB(48, 55, 68)
+    stroke.Transparency  = transparency or 0.3
+    stroke.Thickness     = thickness or 1
+    stroke.Parent        = parent
+    return stroke
+end
+
+local function addSizeConstraint(parent, minX, minY, maxX, maxY)
+    local sc = Instance.new("UISizeConstraint")
+    sc.MinSize = Vector2.new(minX, minY)
+    sc.MaxSize = Vector2.new(maxX, maxY)
+    sc.Parent  = parent
+    return sc
+end
+
+local function addTextSizeConstraint(parent, minSize, maxSize)
+    local tc = Instance.new("UITextSizeConstraint")
+    tc.MinTextSize = minSize or 10
+    tc.MaxTextSize = maxSize or 13
+    tc.Parent      = parent
+    return tc
+end
+
+-- Responsive UIScale tied to viewport width
+local function applyViewportScale(scaleObj)
+    local function updateScale()
+        local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
+        if vp and vp.X > 0 then
+            -- Script uses a fixed 0.78 scale (observed in log after viewport check)
+            scaleObj.Scale = CONFIG.UIScaleValue
+        end
+    end
+    updateScale()
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(updateScale)
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+    end
+end
+
+-- Draggable logic (reconstructed from InputBegan / InputChanged log trace)
+local function makeDraggable(frame)
+    local dragging      = false
+    local dragStart     = nil
+    local startPosition = nil
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging      = true
+            dragStart     = input.Position
+            startPosition = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- Create a visual toggle row (returns the row frame and key sub-objects)
+local function buildToggleRow(parent, labelText, yOffset)
+    -- Row container
+    local row = Instance.new("Frame")
+    row.Size              = CONFIG.Size[labelText == "Anti Die" and "AntiDieRow" or "AntiFlingRow"]
+    row.Position          = yOffset
+    row.BackgroundColor3  = CONFIG.Colors.RowBG
+    row.BorderSizePixel   = 0
+    row.Parent            = parent
+    addCorner(row, 15)
+    addStroke(row, CONFIG.Colors.RowStroke, 0.42)
+
+    -- Label
+    local lbl = Instance.new("TextLabel")
+    lbl.Text                = labelText
+    lbl.TextColor3          = CONFIG.Colors.TitleText
+    lbl.Font                = Enum.Font.GothamMedium
+    lbl.TextSize            = 14
+    lbl.TextXAlignment      = Enum.TextXAlignment.Left
+    lbl.BackgroundTransparency = 1
+    lbl.Size                = UDim2.new(1, -120, 1, 0)
+    lbl.Position            = CONFIG.Position.LabelInRow
+    lbl.ZIndex              = 12
+    lbl.Parent              = row
+
+    -- Toggle pill background
+    local toggleBG = Instance.new("Frame")
+    toggleBG.Size             = CONFIG.Size.ToggleBG
+    toggleBG.Position         = CONFIG.Position.ToggleBG
+    toggleBG.BackgroundColor3 = CONFIG.Colors.ToggleOffBG
+    toggleBG.BorderSizePixel  = 0
+    toggleBG.ZIndex           = 13
+    toggleBG.Parent           = row
+    addCorner(toggleBG, 15)
+    addStroke(toggleBG, CONFIG.Colors.RowStroke, 0.5)
+
+    -- Knob (sliding dot)
+    local knob = Instance.new("Frame")
+    knob.Size             = CONFIG.Size.ToggleKnob
+    knob.Position         = CONFIG.Position.ToggleKnob
+    knob.BackgroundColor3 = CONFIG.Colors.ToggleOffKnob
+    knob.BorderSizePixel  = 0
+    knob.ZIndex           = 14
+    knob.Parent           = toggleBG
+    addCorner(knob, 12)
+
+    -- Invisible full-row click button
+    local btn = Instance.new("TextButton")
+    btn.Size                  = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text                  = ""
+    btn.ZIndex                = 15
+    btn.Parent                = row
+
+    return row, lbl, toggleBG, knob, btn
+end
+
+-- ============================================================
+-- // [5] GUI CREATION //
+-- ============================================================
+
+local function createGUI()
+    -- ---- Root ScreenGui ----
+    GUI = Instance.new("ScreenGui")
+    GUI.Name           = CONFIG.Names.ScreenGui
+    GUI.DisplayOrder   = 100
+    GUI.ResetOnSpawn   = false
+    GUI.IgnoreGuiInset = true
+    GUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    GUI.Parent         = CoreGui
+
+    -- ---- Bottom-right watermark tag ----
+    DiscordTag = Instance.new("TextLabel")
+    DiscordTag.Name                = CONFIG.Names.DiscordTag
+    DiscordTag.Text                = "best anti die discord.gg/irsh"
+    DiscordTag.TextColor3          = CONFIG.Colors.WatermarkText
+    DiscordTag.BackgroundColor3    = CONFIG.Colors.WatermarkBG
+    DiscordTag.BackgroundTransparency = 0
+    DiscordTag.Font                = Enum.Font.GothamBlack
+    DiscordTag.TextScaled          = true
+    DiscordTag.TextWrapped         = false
+    DiscordTag.TextXAlignment      = Enum.TextXAlignment.Center
+    DiscordTag.TextYAlignment      = Enum.TextYAlignment.Center
+    DiscordTag.AnchorPoint         = Vector2.new(1, 1)
+    DiscordTag.Size                = UDim2.new(0.24, 0, 0, 24)
+    DiscordTag.Position            = CONFIG.Position.WatermarkTag
+    DiscordTag.ZIndex              = 200
+    DiscordTag.BorderSizePixel     = 0
+    DiscordTag.Parent              = GUI
+    addCorner(DiscordTag, 9)
+    addStroke(DiscordTag, CONFIG.Colors.WatermarkStroke, 0, 1)
+    addSizeConstraint(DiscordTag, 165, 24, 245, 30)
+    addTextSizeConstraint(DiscordTag, 10, 13)
+
+    -- ---- Main Frame ----
+    Main = Instance.new("Frame")
+    Main.Name              = CONFIG.Names.Main
+    Main.Size              = CONFIG.Size.Main
+    Main.Position          = CONFIG.Position.Main
+    Main.BackgroundColor3  = CONFIG.Colors.MainBG
+    Main.ClipsDescendants  = true
+    Main.Active            = true
+    Main.ZIndex            = 10
+    Main.BorderSizePixel   = 0
+    Main.Parent            = GUI
+    addCorner(Main, 20)
+    addStroke(Main, CONFIG.Colors.MainStroke, 0.2)
+
+    -- Responsive scale
+    local mainScale = Instance.new("UIScale")
+    mainScale.Scale  = CONFIG.UIScaleValue
+    mainScale.Parent = Main
+    applyViewportScale(mainScale)
+
+    -- ---- Header Frame (transparent top bar) ----
+    HeaderFrame = Instance.new("Frame")
+    HeaderFrame.Size                  = CONFIG.Size.Header
+    HeaderFrame.Position              = UDim2.new(0, 0, 0, 0)
+    HeaderFrame.BackgroundTransparency = 1
+    HeaderFrame.ZIndex                = 12
+    HeaderFrame.BorderSizePixel       = 0
+    HeaderFrame.Parent                = Main
+
+    -- Red indicator dot
+    RedDot = Instance.new("Frame")
+    RedDot.Size             = UDim2.new(0, 10, 0, 10)
+    RedDot.Position         = CONFIG.Position.RedDot
+    RedDot.BackgroundColor3 = CONFIG.Colors.RedDot
+    RedDot.ZIndex           = 13
+    RedDot.BorderSizePixel  = 0
+    RedDot.Parent           = HeaderFrame
+    addCorner(RedDot, 10)
+
+    -- Title: "IRISH HUB"
+    TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Text                = "IRISH HUB"
+    TitleLabel.TextColor3          = CONFIG.Colors.TitleText
+    TitleLabel.Font                = Enum.Font.GothamBlack
+    TitleLabel.TextSize            = 17
+    TitleLabel.TextXAlignment      = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Size                = UDim2.new(1, -92, 0, 22)
+    TitleLabel.Position            = CONFIG.Position.TitleLabel
+    TitleLabel.ZIndex              = 13
+    TitleLabel.Parent              = HeaderFrame
+
+    -- Subtitle: "ANTI DIE / ANTI FLING"
+    SubtitleLabel = Instance.new("TextLabel")
+    SubtitleLabel.Text                = "ANTI DIE / ANTI FLING"
+    SubtitleLabel.TextColor3          = CONFIG.Colors.SubtitleText
+    SubtitleLabel.Font                = Enum.Font.GothamMedium
+    SubtitleLabel.TextSize            = 11
+    SubtitleLabel.TextXAlignment      = Enum.TextXAlignment.Left
+    SubtitleLabel.BackgroundTransparency = 1
+    SubtitleLabel.Size                = UDim2.new(1, -92, 0, 15)
+    SubtitleLabel.Position            = CONFIG.Position.SubtitleLabel
+    SubtitleLabel.ZIndex              = 13
+    SubtitleLabel.Parent              = HeaderFrame
+
+    -- Minimize button '−'
+    MinimizeBtn = Instance.new("TextButton")
+    MinimizeBtn.Text                = "−"
+    MinimizeBtn.TextColor3          = CONFIG.Colors.MinimizeText
+    MinimizeBtn.Font                = Enum.Font.GothamBlack
+    MinimizeBtn.TextSize            = 20
+    MinimizeBtn.AutoButtonColor     = false
+    MinimizeBtn.BackgroundColor3    = CONFIG.Colors.MinimizeBG
+    MinimizeBtn.BackgroundTransparency = 0
+    MinimizeBtn.Size                = CONFIG.Size.MinimizeBtn
+    MinimizeBtn.Position            = CONFIG.Position.MinimizeBtn
+    MinimizeBtn.ZIndex              = 14
+    MinimizeBtn.BorderSizePixel     = 0
+    MinimizeBtn.Parent              = HeaderFrame
+    addCorner(MinimizeBtn, 8)
+    addStroke(MinimizeBtn, CONFIG.Colors.MinimizeStroke, 0.35)
+
+    -- ---- Content Frame (body below header) ----
+    ContentFrame = Instance.new("Frame")
+    ContentFrame.Size                  = CONFIG.Size.Content
+    ContentFrame.Position              = UDim2.new(0, 0, 0, 56)
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.ZIndex                = 11
+    ContentFrame.BorderSizePixel       = 0
+    ContentFrame.Parent                = Main
+
+    -- ---- Anti Die Row ----
+    AntiDieRow, AntiDieLabel, AntiDieToggleBG, AntiDieKnob, AntiDieToggleBtn =
+        buildToggleRow(ContentFrame, "Anti Die", CONFIG.Position.AntiDieRow)
+
+    -- ---- Anti Fling Row ----
+    AntiFlingRow, AntiFlingLabel, AntiFlingToggleBG, AntiFlingKnob, AntiFlingToggleBtn =
+        buildToggleRow(ContentFrame, "Anti Fling", CONFIG.Position.AntiFlingRow)
+
+    -- ---- Discord link label ----
+    DiscordLinkLabel = Instance.new("TextLabel")
+    DiscordLinkLabel.Text                = "discord.gg/irsh"
+    DiscordLinkLabel.TextColor3          = CONFIG.Colors.SubtitleText
+    DiscordLinkLabel.Font                = Enum.Font.GothamMedium
+    DiscordLinkLabel.TextScaled          = true
+    DiscordLinkLabel.TextXAlignment      = Enum.TextXAlignment.Center
+    DiscordLinkLabel.BackgroundColor3    = CONFIG.Colors.DiscordLabelBG
+    DiscordLinkLabel.BackgroundTransparency = 0
+    DiscordLinkLabel.Size                = CONFIG.Size.DiscordLabel
+    DiscordLinkLabel.Position            = CONFIG.Position.DiscordLabel
+    DiscordLinkLabel.BorderSizePixel     = 0
+    DiscordLinkLabel.ZIndex              = 12
+    DiscordLinkLabel.Parent              = ContentFrame
+    addCorner(DiscordLinkLabel, 8)
+    addStroke(DiscordLinkLabel, CONFIG.Colors.RowStroke, 0.35)
+    addTextSizeConstraint(DiscordLinkLabel, 10, 13)
+
+    -- Enable dragging on the main frame
+    makeDraggable(Main)
+end
+
+-- ============================================================
+-- // [6] FUNCTIONALITY //
+-- ============================================================
+
+-- Helper: get the local player's Humanoid safely
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Helper: get the local player's HumanoidRootPart safely
+local function getHRP(char)
+    char = char or LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
+-- ----------------------------------------------------------------
+-- Anti Die: applies god-mode to the provided Humanoid
+-- ----------------------------------------------------------------
+local function applyAntiDie(humanoid)
+    if not humanoid then return end
+
+    -- Infinite health
+    humanoid.MaxHealth = math.huge
+    humanoid.Health    = math.huge
+
+    -- Disable death state
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+    -- Re-fill health any time it changes
+    local conn1 = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+        if CONFIG.ToggleStates.AntiDie and humanoid and humanoid.Parent then
+            humanoid.Health = humanoid.MaxHealth
+        end
+    end)
+
+    -- Re-fill health on state transition (e.g. fling damage triggers)
+    local conn2 = humanoid.StateChanged:Connect(function(_, newState)
+        if CONFIG.ToggleStates.AntiDie and humanoid and humanoid.Parent then
+            if newState == Enum.HumanoidStateType.Dead then
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+                humanoid.Health = humanoid.MaxHealth
+            end
+        end
+    end)
+
+    table.insert(AntiDieConnections, conn1)
+    table.insert(AntiDieConnections, conn2)
+end
+
+-- ----------------------------------------------------------------
+-- Anti Die toggle handler
+-- ----------------------------------------------------------------
+local function setAntiDie(state)
+    CONFIG.ToggleStates.AntiDie = state
+
+    -- Update toggle visual
+    local knobColor = state and CONFIG.Colors.ToggleOnKnob  or CONFIG.Colors.ToggleOffKnob
+    local bgColor   = state and CONFIG.Colors.ToggleOnBG    or CONFIG.Colors.ToggleOffBG
+    AntiDieKnob.BackgroundColor3    = knobColor
+    AntiDieToggleBG.BackgroundColor3 = bgColor
+
+    -- Disconnect old connections
+    for _, c in ipairs(AntiDieConnections) do
+        c:Disconnect()
+    end
+    AntiDieConnections = {}
+
+    local char = LocalPlayer.Character
+
+    if state then
+        -- Add green highlight to character
+        if char then
+            local existingHighlight = char:FindFirstChild(CONFIG.Names.HighlightTag)
+            if existingHighlight then existingHighlight:Destroy() end
+
+            local highlight = Instance.new("Highlight")
+            highlight.Name               = CONFIG.Names.HighlightTag
+            highlight.FillColor          = CONFIG.Colors.HighlightFill
+            highlight.OutlineColor       = CONFIG.Colors.HighlightOutline
+            highlight.FillTransparency   = 0.75
+            highlight.OutlineTransparency = 0
+            highlight.DepthMode          = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent             = char
+        end
+
+        -- Apply to current humanoid
+        applyAntiDie(getHumanoid())
+
+        -- Re-apply on respawn
+        local conn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+            task.wait(0.1)
+            if not CONFIG.ToggleStates.AntiDie then return end
+
+            -- Re-add highlight
+            local existingHighlight = newChar:FindFirstChild(CONFIG.Names.HighlightTag)
+            if existingHighlight then existingHighlight:Destroy() end
+
+            local highlight = Instance.new("Highlight")
+            highlight.Name               = CONFIG.Names.HighlightTag
+            highlight.FillColor          = CONFIG.Colors.HighlightFill
+            highlight.OutlineColor       = CONFIG.Colors.HighlightOutline
+            highlight.FillTransparency   = 0.75
+            highlight.OutlineTransparency = 0
+            highlight.DepthMode          = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent             = newChar
+
+            -- Re-apply god mode
+            local newHumanoid = newChar:WaitForChild("Humanoid", 5)
+            applyAntiDie(newHumanoid)
+        end)
+
+        table.insert(AntiDieConnections, conn)
+    else
+        -- Remove highlight and restore normal health
+        if char then
+            local h = char:FindFirstChild(CONFIG.Names.HighlightTag)
+            if h then h:Destroy() end
+
+            local humanoid = getHumanoid()
+            if humanoid then
+                humanoid.MaxHealth = 100
+                humanoid.Health    = 100
+            end
+        end
+    end
+end
+
+-- ----------------------------------------------------------------
+-- Anti Fling: claim network ownership of all players' HRPs
+-- ----------------------------------------------------------------
+local function claimOwnership(character)
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        pcall(function()
+            hrp:SetNetworkOwner()
+        end)
+    end
+end
+
+local function setAntiFling(state)
+    CONFIG.ToggleStates.AntiFling = state
+
+    -- Update toggle visual
+    local knobColor = state and CONFIG.Colors.ToggleOnKnob  or CONFIG.Colors.ToggleOffKnob
+    local bgColor   = state and CONFIG.Colors.ToggleOnBG    or CONFIG.Colors.ToggleOffBG
+    AntiFlingKnob.BackgroundColor3    = knobColor
+    AntiFlingToggleBG.BackgroundColor3 = bgColor
+
+    -- Disconnect old connections
+    for _, c in ipairs(AntiFlingConnections) do
+        c:Disconnect()
+    end
+    AntiFlingConnections = {}
+
+    if state then
+        -- Apply to all current players
+        for _, player in ipairs(Players:GetPlayers()) do
+            claimOwnership(player.Character)
+
+            -- Re-apply on their respawn
+            local conn = player.CharacterAdded:Connect(function(char)
+                task.wait(0.1)
+                if CONFIG.ToggleStates.AntiFling then
+                    claimOwnership(char)
+                end
+            end)
+            table.insert(AntiFlingConnections, conn)
+        end
+
+        -- Handle players who join after Anti Fling is enabled
+        local addedConn = Players.PlayerAdded:Connect(function(player)
+            if not CONFIG.ToggleStates.AntiFling then return end
+            claimOwnership(player.Character)
+            local conn = player.CharacterAdded:Connect(function(char)
+                task.wait(0.1)
+                if CONFIG.ToggleStates.AntiFling then
+                    claimOwnership(char)
+                end
+            end)
+            table.insert(AntiFlingConnections, conn)
+        end)
+        table.insert(AntiFlingConnections, addedConn)
+
+        -- Continuously re-assert ownership on RenderStepped (prevent bypass)
+        local renderConn = RunService.RenderStepped:Connect(function()
+            if not CONFIG.ToggleStates.AntiFling then return end
+            for _, player in ipairs(Players:GetPlayers()) do
+                claimOwnership(player.Character)
+            end
+        end)
+        table.insert(AntiFlingConnections, renderConn)
+    end
+end
+
+-- ----------------------------------------------------------------
+-- Minimize / Maximize animation
+-- ----------------------------------------------------------------
+local function toggleMinimize()
+    isMinimized = not isMinimized
+
+    local targetSize = isMinimized and CONFIG.Size.MainCollapsed or CONFIG.Size.Main
+    MinimizeBtn.Text = isMinimized and "+" or "−"
+
+    local tween = TweenService:Create(
+        Main,
+        TweenInfo.new(CONFIG.MinimizeTweenTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { Size = targetSize }
+    )
+    tween:Play()
+end
+
+-- ----------------------------------------------------------------
+-- Wire up all button events
+-- ----------------------------------------------------------------
+local function connectEvents()
+    -- Minimize button
+    MinimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+
+    MinimizeBtn.MouseEnter:Connect(function()
+        MinimizeBtn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
+    end)
+
+    MinimizeBtn.MouseLeave:Connect(function()
+        MinimizeBtn.BackgroundColor3 = CONFIG.Colors.MinimizeBG
+    end)
+
+    -- Anti Die toggle
+    AntiDieToggleBtn.MouseButton1Click:Connect(function()
+        setAntiDie(not CONFIG.ToggleStates.AntiDie)
+    end)
+
+    -- Anti Fling toggle
+    AntiFlingToggleBtn.MouseButton1Click:Connect(function()
+        setAntiFling(not CONFIG.ToggleStates.AntiFling)
+    end)
+end
+
+-- ============================================================
+-- // [7] INITIALIZATION //
+-- ============================================================
+
+local function init()
+
+    -- Duplicate-instance guard: destroy any previous copy of this script's GUI
+    local existingGui = CoreGui:FindFirstChild(CONFIG.Names.ScreenGui)
+    if existingGui then
+        existingGui:Destroy()
+    end
+
+    -- Prevent script running twice (dejavu check via IntValue in workspace)
+    local dejavuHolder = workspace:FindFirstChild(CONFIG.Names.Dejavu)
+    if dejavuHolder then
+        dejavuHolder:Destroy()
+    end
+    local dejavuMark = Instance.new("IntValue")
+    dejavuMark.Name   = CONFIG.Names.Dejavu
+    dejavuMark.Parent = workspace
+
+    -- Build the GUI
+    createGUI()
+
+    -- Connect all button events
+    connectEvents()
+
+    -- Apply default toggle states from CONFIG
+    -- (Both start OFF per log initial state; change CONFIG.ToggleStates to auto-enable)
+    if CONFIG.ToggleStates.AntiDie then
+        setAntiDie(true)
+    end
+    if CONFIG.ToggleStates.AntiFling then
+        setAntiFling(true)
+    end
+end
+
+-- Entry point
+init()
