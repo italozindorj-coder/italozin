@@ -1120,7 +1120,7 @@ local outfitSelectorLabel = nil
 
 VX7A = {
     index = 0, mod = nil, loading = false, busy = false, pending = nil, label = nil,
-    labels = {"OFF", "ALIEN", "OUTFIT", "OUTFIT 2", "OUTFIT 3", "OUTFIT 4", "OUTFIT 5", "OUTFIT 6", "MVP", "NEW SKIN"},
+    labels = {"OFF", "ALIEN", "OUTFIT", "OUTFIT 2", "OUTFIT 3", "OUTFIT 4", "OUTFIT 5", "OUTFIT 6", "VENOM", "NEW SKIN"},
 }
 VX7A.src = [==[
 local Players = game:GetService("Players")
@@ -8249,7 +8249,7 @@ function openMVPPingLagger()
     titleLbl.Size               = UDim2.new(1,-70,1,0)
     titleLbl.Position           = UDim2.new(0,10,0,0)
     titleLbl.BackgroundTransparency = 1
-    titleLbl.Text               = "MVP PING LAGGER"
+    titleLbl.Text               = "VENOM PING LAGGER"
     titleLbl.TextColor3         = C.white
     titleLbl.Font               = Enum.Font.GothamBlack
     titleLbl.TextSize           = 9
