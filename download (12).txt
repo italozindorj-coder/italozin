@@ -62,7 +62,7 @@ do
     local plrGui = plr:WaitForChild("PlayerGui")
 
     local CONFIG_FILE = "BlastPingBypass_Config.json"
-    local HUB_BG = "rbxassetid://78984580985059"
+    local HUB_BG = "rbxassetid://102913162755237"
     local HUB_LOGO = "rbxassetid://102913162755237"
 
     local DEFAULT_CFG = {
@@ -807,7 +807,7 @@ end
 
 
 -- ============================================================
--- EMBER HUB INTRO: a abertura dura 10 segundos desde que a tela aparece.
+-- VENOM HUB INTRO: a abertura dura 10 segundos desde que a tela aparece.
 -- Skip Intro encerra a abertura e para a musica imediatamente.
 -- A faixa enviada e baixada uma vez e reproduzida como arquivo local pelo executor.
 -- Reproduzir MP3 por URL diretamente em SoundId nao funciona no Roblox.
@@ -1251,7 +1251,7 @@ local INTRO = {
             logo.Size = UDim2.new(0, 80, 0, 28)
             logo.BackgroundTransparency = 1
             logo.BorderSizePixel = 0
-            logo.Image = "rbxassetid://129738961077597"
+            logo.Image = "rbxassetid://102913162755237"
             logo.ScaleType = Enum.ScaleType.Fit
             logo.ImageTransparency = 1
             logo.ImageColor3 = Color3.fromRGB(255, 107, 0)
@@ -1301,7 +1301,7 @@ local INTRO = {
             sub.Size = UDim2.new(1, 0, 0, 22)
             sub.Position = UDim2.new(0, 0, 0, 164)
             sub.BackgroundTransparency = 1
-            sub.Text = "Made By Oldfuck and Mayy"
+            sub.Text = "Made By Dedezin and Italozin"
             sub.TextColor3 = Color3.fromRGB(180, 180, 186)
             sub.Font = Enum.Font.GothamMedium
             sub.TextSize = 16
@@ -1315,7 +1315,7 @@ local INTRO = {
             subtitle.Size = UDim2.new(1, 0, 0, 24)
             subtitle.Position = UDim2.new(0, 0, 0, 194)
             subtitle.BackgroundTransparency = 1
-            subtitle.Text = "The Better Than Fluxo.vs On 💩"
+            subtitle.Text = "The Best script on world"
             subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
             subtitle.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
             subtitle.TextStrokeTransparency = 0.65
@@ -15746,3 +15746,4 @@ end)
 -- USER PROVIDED BILLBOARD & TAG SYSTEM
 -- ============================================================
 -- Disabled to prevent "out of local registers" error
+or
