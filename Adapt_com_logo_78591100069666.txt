@@ -5170,7 +5170,7 @@ AdaptMiniLogo.Name = "AdaptMiniLogo"
 AdaptMiniLogo.BackgroundTransparency = 1
 AdaptMiniLogo.Size = UDim2.new(1, -12, 1, -8)
 AdaptMiniLogo.Position = UDim2.new(0, 6, 0, 4)
-AdaptMiniLogo.Image = "rbxassetid://78591100069666"
+AdaptMiniLogo.Image = "rbxassetid://88421044532649"
 AdaptMiniLogo.ScaleType = Enum.ScaleType.Fit
 AdaptMiniLogo.ZIndex = 23
 AdaptMiniLogo.Active = false
@@ -5426,7 +5426,7 @@ AdaptLogoAsset.ZIndex = 6
 AdaptLogoAsset.Position = UDim2.new(0.5, -150, 0, -18)
 AdaptLogoAsset.Size = UDim2.new(0, 300, 0, 150)
 AdaptLogoAsset.BackgroundTransparency = 1
-AdaptLogoAsset.Image = "rbxassetid://78591100069666"
+AdaptLogoAsset.Image = "rbxassetid://88421044532649"
 AdaptLogoAsset.ScaleType = Enum.ScaleType.Fit
 AdaptLogoAsset.Parent = Main
 AdaptLogoAsset.ImageColor3 = _G.AdaptThemeColors[_G.AdaptThemeName] or _G.AdaptThemeColors.WHITE
@@ -12430,7 +12430,7 @@ _G.__AdaptDuelsRunIntro = function()
             Position=UDim2.new(0.5,0,0.50,0),
             Size=UDim2.new(0.34,0,0,70),
             BackgroundTransparency=1,
-            Image="rbxassetid://78591100069666",
+            Image="",
             ImageTransparency=0,
             ScaleType=Enum.ScaleType.Fit,
             Parent=intro,
@@ -13533,4 +13533,4 @@ print("Remake By Xlu0 Anti Cheat Bypass By Prime")
 print("Remake By Xlu0 Anti Cheat Bypass By Prime")
 print("Remake By Xlu0 Anti Cheat Bypass By Prime")
 print("Remake By Xlu0 Anti Cheat Bypass By Prime")
-print("Remake By Xlu0 Anti Cheat Bypass By Prime")
+print("Remake By Xlu0 Anti Cheat Bypass By Prime")nti Cheat Bypass By Prime")
